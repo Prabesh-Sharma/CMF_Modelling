@@ -1,10 +1,10 @@
-# Accident Modelling (Hackathon)
+# CMF Modelling (Hackathon)
 
-Accident severity modeling pipeline with a map-focused client UI. The server trains on a sampled US accidents dataset and produces model outputs plus Kathmandu Valley hotspot explanations and a KDE heatmap.
+Crash Modification Factor (CMF) modelling toolkit with a map-focused client UI. The server trains on a sampled US accidents dataset, generates hotspot explanations, and exposes APIs for hotspot data, interventions, and a CMF-aware chat assistant.
 
 ## Repo layout
-- `server/`: Python data pipeline (ingest → features → train → SHAP → KDE)
-- `client/`: Vite + TanStack Start UI
+- `server/`: Python data pipeline (ingest → features → train → SHAP → KDE) + FastAPI backend
+- `client/`: Vite + TanStack Start UI with map-anchored assistant
 
 ## What trains on what
 - **Training + validation**: `server/data/inputs/us_accidents_sampled.csv` (or STATS19/custom if configured)
@@ -46,6 +46,11 @@ To enable OSM enrichment for training, either:
 - use a much smaller regional dataset, or
 - lower `OSM_MAX_POINTS` / tighten `OSM_MAX_DEG_RANGE` in `server/pipeline/02_features.py`.
 
+## APIs
+- `GET /api/hotspots` → serves `server/data/shap_hotspots.json`
+- `POST /api/interventions` → logs interventions, returns combined CMF + post-crash estimate
+- `POST /api/chat` → CMF RAG + Qwen (Ollama) responses with context
+
 ## Setup
 ### Server
 ```bash
@@ -71,6 +76,19 @@ npm install
 npm run dev
 ```
 
+### CMF RAG (optional, for /api/chat)
+Add CMF PDFs/text files to `server/RAG/cmf_rag/docs` and build embeddings:
+```bash
+python server/RAG/cmf_rag/cmf_rag.py build \
+  --input-dir server/RAG/cmf_rag/docs \
+  --output server/RAG/cmf_rag/data/cmf_embeddings.parquet
+```
+
+Ensure Ollama is running and Qwen is available:
+```bash
+ollama pull qwen2.5:7b-instruct-q4_K_M
+```
+
 ## Data inputs
 - `server/data/inputs/us_accidents_sampled.csv`
 - `server/data/kathmandu_hotspots.json`
@@ -82,6 +100,11 @@ Optional: `server/scratch/download_and_sample.py` downloads a Kaggle dataset if 
 - `server/data/shap_*.json` (explainability)
 - `server/data/kde_heatmap.json`
 - `server/models/*.json` (model + report)
+
+## Environment variables
+- `HOTSPOTS_API_URL` (client) — defaults to `http://localhost:8000`
+- `RAG_EMBEDDINGS_PATH` (server) — optional override for CMF embeddings file
+- `OLLAMA_MODEL` (server) — defaults to `qwen2.5:7b-instruct-q4_K_M`
 
 ## Hackathon notes
 - The Kathmandu results are **transfer estimates** from a model trained on US data.
