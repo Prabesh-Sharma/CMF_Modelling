@@ -1,0 +1,404 @@
+{
+  "metadata": {
+    "title": "Kathmandu Valley Road Accident Hotspots",
+    "sources": [
+      "Nepal Traffic Police Official Notice #38 (traffic.nepalpolice.gov.np)",
+      "IOE Graduate Conference 2024 - Spatial Analysis of Crash Hotspots",
+      "BMC Public Health 2024 - Spatial Autocorrelation Study Nepal 2019-2022"
+    ],
+    "coverage": "Kathmandu Valley (lat 27.60-27.78, lon 85.17-85.45)",
+    "total_hotspots": 47,
+    "severity_counts": {
+      "critical": 4,
+      "high": 16,
+      "moderate": 25,
+      "low": 2
+    }
+  },
+  "hotspots": {
+    "critical": [
+      {
+        "name": "Satdobato",
+        "lat": 27.658,
+        "lon": 85.319,
+        "severity": "critical",
+        "reasons": ["ring road south", "high volume"],
+        "source": "Nepal Traffic Police (official)"
+      },
+      {
+        "name": "Kalanki Chowk",
+        "lat": 27.6937,
+        "lon": 85.2808,
+        "severity": "critical",
+        "reasons": ["high speed", "poor signage", "pedestrian crossing", "merging traffic"],
+        "source": "Research (IOE/BMC 2019-2021)"
+      },
+      {
+        "name": "Koteshwor Chowk",
+        "lat": 27.6833,
+        "lon": 85.35,
+        "severity": "critical",
+        "reasons": ["high volume", "signal timing", "bus stops", "speeding"],
+        "source": "Research (IOE/BMC 2019-2021)"
+      },
+      {
+        "name": "Thankot",
+        "lat": 27.683,
+        "lon": 85.183,
+        "severity": "critical",
+        "reasons": ["steep grade", "overloaded trucks", "sharp bends", "poor lighting"],
+        "source": "Research (IOE/BMC 2019-2021)"
+      }
+    ],
+    "high": [
+      {
+        "name": "Kathmandu Mall",
+        "lat": 27.7055,
+        "lon": 85.3152,
+        "severity": "high",
+        "reasons": ["pedestrian crossing", "commercial congestion"],
+        "source": "Nepal Traffic Police (official)"
+      },
+      {
+        "name": "Sorhakhutte",
+        "lat": 27.7333,
+        "lon": 85.3022,
+        "severity": "high",
+        "reasons": ["bus park area", "heavy vehicles"],
+        "source": "Nepal Traffic Police (official)"
+      },
+      {
+        "name": "Gyaneshwor (Ratopul)",
+        "lat": 27.7103,
+        "lon": 85.338,
+        "severity": "high",
+        "reasons": ["high speed", "signal violation"],
+        "source": "Nepal Traffic Police (official)"
+      },
+      {
+        "name": "Babarmahal",
+        "lat": 27.6993,
+        "lon": 85.3242,
+        "severity": "high",
+        "reasons": ["government zone", "narrow lanes"],
+        "source": "Nepal Traffic Police (official)"
+      },
+      {
+        "name": "Tripureshwor Chowk",
+        "lat": 27.698,
+        "lon": 85.307,
+        "severity": "high",
+        "reasons": ["bridge approach", "lane merging"],
+        "source": "Nepal Traffic Police (official)"
+      },
+      {
+        "name": "Balkhu Chowk",
+        "lat": 27.6857,
+        "lon": 85.2892,
+        "severity": "high",
+        "reasons": ["highway junction", "speeding"],
+        "source": "Nepal Traffic Police (official)"
+      },
+      {
+        "name": "Jadibutti",
+        "lat": 27.6797,
+        "lon": 85.3697,
+        "severity": "high",
+        "reasons": ["highway entry", "truck traffic"],
+        "source": "Nepal Traffic Police (official)"
+      },
+      {
+        "name": "Thulo Bharang",
+        "lat": 27.6617,
+        "lon": 85.2367,
+        "severity": "high",
+        "reasons": ["steep grade", "truck accidents"],
+        "source": "Nepal Traffic Police (official)"
+      },
+      {
+        "name": "Suryabinayak",
+        "lat": 27.6717,
+        "lon": 85.4267,
+        "severity": "high",
+        "reasons": ["Bhaktapur highway entry", "speed"],
+        "source": "Nepal Traffic Police (official)"
+      },
+      {
+        "name": "Airport Cargo Building",
+        "lat": 27.6983,
+        "lon": 85.3583,
+        "severity": "high",
+        "reasons": ["airport traffic", "lane merging"],
+        "source": "Nepal Traffic Police (official)"
+      },
+      {
+        "name": "Thimi Chowk",
+        "lat": 27.6867,
+        "lon": 85.3967,
+        "severity": "high",
+        "reasons": ["Bhaktapur road", "high speed"],
+        "source": "Nepal Traffic Police (official)"
+      },
+      {
+        "name": "Chabahil / Bouddha",
+        "lat": 27.7172,
+        "lon": 85.3464,
+        "severity": "high",
+        "reasons": ["tourist congestion", "narrow lanes", "mixed traffic"],
+        "source": "Research (IOE/BMC 2019-2021)"
+      },
+      {
+        "name": "Maitighar",
+        "lat": 27.6952,
+        "lon": 85.3195,
+        "severity": "high",
+        "reasons": ["pedestrian crossing", "high-speed corridor", "signal violation"],
+        "source": "Research (IOE/BMC 2019-2021)"
+      },
+      {
+        "name": "Maharajgunj",
+        "lat": 27.737,
+        "lon": 85.331,
+        "severity": "high",
+        "reasons": ["embassy zone", "high vehicle volume", "uncontrolled turns"],
+        "source": "Research (IOE/BMC 2019-2021)"
+      },
+      {
+        "name": "Tinkune / Airport",
+        "lat": 27.695,
+        "lon": 85.358,
+        "severity": "high",
+        "reasons": ["airport traffic", "bus stops", "lane merging"],
+        "source": "Research (IOE/BMC 2019-2021)"
+      },
+      {
+        "name": "Gongabu / Gangabu",
+        "lat": 27.735,
+        "lon": 85.306,
+        "severity": "high",
+        "reasons": ["bus park proximity", "pedestrian crossing", "heavy vehicles"],
+        "source": "Research (IOE/BMC 2019-2021)"
+      }
+    ],
+    "moderate": [
+      {
+        "name": "Kesharmahal",
+        "lat": 27.7143,
+        "lon": 85.3147,
+        "severity": "moderate",
+        "reasons": ["narrow road", "mixed traffic"],
+        "source": "Nepal Traffic Police (official)"
+      },
+      {
+        "name": "Infront of Providence Fund Building",
+        "lat": 27.6997,
+        "lon": 85.3195,
+        "severity": "moderate",
+        "reasons": ["government zone", "pedestrian"],
+        "source": "Nepal Traffic Police (official)"
+      },
+      {
+        "name": "Teku",
+        "lat": 27.6938,
+        "lon": 85.3022,
+        "severity": "moderate",
+        "reasons": ["riverside road", "poor lighting"],
+        "source": "Nepal Traffic Police (official)"
+      },
+      {
+        "name": "Chovar",
+        "lat": 27.6617,
+        "lon": 85.2803,
+        "severity": "moderate",
+        "reasons": ["gorge road", "sharp turns"],
+        "source": "Nepal Traffic Police (official)"
+      },
+      {
+        "name": "Bansbari",
+        "lat": 27.7392,
+        "lon": 85.3283,
+        "severity": "moderate",
+        "reasons": ["residential area", "school zone"],
+        "source": "Nepal Traffic Police (official)"
+      },
+      {
+        "name": "Dhungeadda",
+        "lat": 27.7017,
+        "lon": 85.2967,
+        "severity": "moderate",
+        "reasons": ["narrow lane", "residential"],
+        "source": "Nepal Traffic Police (official)"
+      },
+      {
+        "name": "Pipla Mode",
+        "lat": 27.675,
+        "lon": 85.355,
+        "severity": "moderate",
+        "reasons": ["commercial zone", "congestion"],
+        "source": "Nepal Traffic Police (official)"
+      },
+      {
+        "name": "Satungal",
+        "lat": 27.6933,
+        "lon": 85.2483,
+        "severity": "moderate",
+        "reasons": ["highway bend", "poor markings"],
+        "source": "Nepal Traffic Police (official)"
+      },
+      {
+        "name": "Ganga Hall",
+        "lat": 27.6883,
+        "lon": 85.345,
+        "severity": "moderate",
+        "reasons": ["busy intersection"],
+        "source": "Nepal Traffic Police (official)"
+      },
+      {
+        "name": "Basundhara",
+        "lat": 27.7467,
+        "lon": 85.325,
+        "severity": "moderate",
+        "reasons": ["residential growth", "speeding"],
+        "source": "Nepal Traffic Police (official)"
+      },
+      {
+        "name": "Chapali",
+        "lat": 27.7533,
+        "lon": 85.3383,
+        "severity": "moderate",
+        "reasons": ["outskirts", "poor lighting"],
+        "source": "Nepal Traffic Police (official)"
+      },
+      {
+        "name": "Sukedhara Chowk",
+        "lat": 27.728,
+        "lon": 85.337,
+        "severity": "moderate",
+        "reasons": ["ring road", "speeding"],
+        "source": "Nepal Traffic Police (official)"
+      },
+      {
+        "name": "Naya Basti",
+        "lat": 27.715,
+        "lon": 85.2917,
+        "severity": "moderate",
+        "reasons": ["residential", "poor crossing"],
+        "source": "Nepal Traffic Police (official)"
+      },
+      {
+        "name": "Saraswotinagar",
+        "lat": 27.6783,
+        "lon": 85.3583,
+        "severity": "moderate",
+        "reasons": ["commercial", "congestion"],
+        "source": "Nepal Traffic Police (official)"
+      },
+      {
+        "name": "Pingalasthan",
+        "lat": 27.6633,
+        "lon": 85.3383,
+        "severity": "moderate",
+        "reasons": ["Lalitpur zone", "mixed traffic"],
+        "source": "Nepal Traffic Police (official)"
+      },
+      {
+        "name": "Sagbari",
+        "lat": 27.665,
+        "lon": 85.3483,
+        "severity": "moderate",
+        "reasons": ["Lalitpur", "residential"],
+        "source": "Nepal Traffic Police (official)"
+      },
+      {
+        "name": "Tathali",
+        "lat": 27.7167,
+        "lon": 85.405,
+        "severity": "moderate",
+        "reasons": ["Bhaktapur outskirts"],
+        "source": "Nepal Traffic Police (official)"
+      },
+      {
+        "name": "Balkumari",
+        "lat": 27.6733,
+        "lon": 85.3483,
+        "severity": "moderate",
+        "reasons": ["ring road south-east"],
+        "source": "Nepal Traffic Police (official)"
+      },
+      {
+        "name": "Ekanatakuna",
+        "lat": 27.6683,
+        "lon": 85.3133,
+        "severity": "moderate",
+        "reasons": ["ring road", "Lalitpur"],
+        "source": "Nepal Traffic Police (official)"
+      },
+      {
+        "name": "Dhobighat",
+        "lat": 27.6783,
+        "lon": 85.3183,
+        "severity": "moderate",
+        "reasons": ["Lalitpur", "pedestrian"],
+        "source": "Nepal Traffic Police (official)"
+      },
+      {
+        "name": "Jawalakhel",
+        "lat": 27.672,
+        "lon": 85.31,
+        "severity": "moderate",
+        "reasons": ["pedestrian market", "motorcycle density"],
+        "source": "Research (IOE/BMC 2019-2021)"
+      },
+      {
+        "name": "Sitapaila",
+        "lat": 27.714,
+        "lon": 85.274,
+        "severity": "moderate",
+        "reasons": ["steep road", "poor lighting", "night accidents"],
+        "source": "Research (IOE/BMC 2019-2021)"
+      },
+      {
+        "name": "Min Bhawan",
+        "lat": 27.694,
+        "lon": 85.343,
+        "severity": "moderate",
+        "reasons": ["high speed", "commercial zone"],
+        "source": "Research (IOE/BMC 2019-2021)"
+      },
+      {
+        "name": "Gwarko Chowk",
+        "lat": 27.671,
+        "lon": 85.333,
+        "severity": "moderate",
+        "reasons": ["construction zone", "lane confusion"],
+        "source": "Research (IOE/BMC 2019-2021)"
+      },
+      {
+        "name": "Balaju",
+        "lat": 27.73,
+        "lon": 85.297,
+        "severity": "moderate",
+        "reasons": ["industrial zone", "truck traffic", "poor markings"],
+        "source": "Research (IOE/BMC 2019-2021)"
+      }
+    ],
+    "low": [
+      {
+        "name": "Thecho",
+        "lat": 27.6267,
+        "lon": 85.3183,
+        "severity": "low",
+        "reasons": ["rural Lalitpur", "curves"],
+        "source": "Nepal Traffic Police (official)"
+      },
+      {
+        "name": "Khokana",
+        "lat": 27.6383,
+        "lon": 85.2983,
+        "severity": "low",
+        "reasons": ["rural road", "poor markings"],
+        "source": "Nepal Traffic Police (official)"
+      }
+    ]
+  }
+}
