@@ -271,7 +271,9 @@ def run():
     elif CUSTOM_CSV:
         df = load_custom(CUSTOM_CSV)
     else:
-        df = generate_synthetic()
+        raise ValueError(
+            "No input CSV configured. Set STATS19_CSV, US_ACC_CSV, or CUSTOM_CSV."
+        )
 
     required = ["latitude", "longitude", "severity"]
     missing = [c for c in required if c not in df.columns]

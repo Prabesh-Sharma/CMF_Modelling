@@ -27,37 +27,17 @@ FEAT_LIST = Path(__file__).parent.parent / "models" / "feature_list.json"
 REPORT_OUT = Path(__file__).parent.parent / "models" / "train_report.json"
 
 FEATURE_COLS = [
-    "speed_limit",
     "visibility_mi",
     "temperature_f",
     "wind_speed_mph",
     "precipitation_in",
     "humidity_pct",
     "pressure_in",
-    "number_of_vehicles",
-    "carriageway_hazards",
-    "road_type_risk",
-    "junction_risk",
-    "light_risk",
-    "weather_risk",
     "traffic_signal",
     "junction_detail",
-    "hour_sin",
-    "hour_cos",
-    "dow_sin",
-    "dow_cos",
-    "peak_hour",
-    "festival_flag",
-    "is_night",
-    "speed_variance_proxy",
-    "severity_exposure",
-    "junction_light_interact",
-    "weather_speed_interact",
-    "monsoon_flag",
-    "steep_grade_flag",
-    "dist_to_signal",
-    "overhead_bridge",
-    "pop_density_norm",
+    "hour_of_day",
+    "day_of_week",
+    "road_type",
 ]
 
 TARGET = "severity"
@@ -88,12 +68,24 @@ def run():
 
     missing = [c for c in FEATURE_COLS if c not in df.columns]
     if missing:
-        print(f"[train] WARNING: missing features (will use zeros): {missing}")
-        for c in missing:
-            df[c] = 0.0
+        print(f"[train] WARNING: missing features (will drop): {missing}")
+    used_cols = [c for c in FEATURE_COLS if c in df.columns]
+    if not used_cols:
+        raise ValueError("No usable feature columns found.")
 
-    X = df[FEATURE_COLS].fillna(0).astype(float)
+    X = df[used_cols].copy()
+    cat_cols = [c for c in ["road_type"] if c in X.columns]
+    if cat_cols:
+        X = pd.get_dummies(X, columns=cat_cols, dummy_na=True)
+    X = X.astype(float)
     y_raw = df[TARGET].astype(int)
+
+    valid_mask = X.notna().all(axis=1)
+    if not valid_mask.all():
+        dropped = int((~valid_mask).sum())
+        print(f"[train] Dropping {dropped:,} rows with missing feature values")
+        X = X.loc[valid_mask]
+        y_raw = y_raw.loc[valid_mask]
 
     # remap to contiguous labels based on existing classes
     unique_classes = sorted(y_raw.unique())
@@ -109,7 +101,7 @@ def run():
     class_weights = {
         c: total / (len(class_counts) * cnt) for c, cnt in class_counts.items()
     }
-    sample_weights = y.map(class_weights).values
+    sample_weights = y.map(class_weights)
     print(f"[train] Class weights: {class_weights}")
 
     params = {
@@ -134,10 +126,13 @@ def run():
     print("[train] Running spatial cross-validation (5 folds)...")
     cv_aucs, cv_p20s = [], []
 
+    valid_idx = X.index
     for fold_i, (train_idx, test_idx) in enumerate(spatial_cv_split(df, n_splits=5)):
-        X_tr, X_te = X.iloc[train_idx], X.iloc[test_idx]
-        y_tr, y_te = y.iloc[train_idx], y.iloc[test_idx]
-        sw_tr = sample_weights[train_idx]
+        train_ids = valid_idx[train_idx]
+        test_ids = valid_idx[test_idx]
+        X_tr, X_te = X.loc[train_ids], X.loc[test_ids]
+        y_tr, y_te = y.loc[train_ids], y.loc[test_ids]
+        sw_tr = sample_weights[train_ids]
 
         model = xgb.XGBClassifier(**params)
         model.fit(
@@ -160,7 +155,7 @@ def run():
 
     print("[train] Training final model with spatial holdout...")
     rng = np.random.default_rng(42)
-    grid_id = df["lat_bin"].astype(str) + "_" + df["lon_bin"].astype(str)
+    grid_id = df.loc[valid_idx, "lat_bin"].astype(str) + "_" + df.loc[valid_idx, "lon_bin"].astype(str)
     unique_cells = grid_id.unique()
     rng.shuffle(unique_cells)
     holdout_cells = set(unique_cells[: max(1, int(0.2 * len(unique_cells)))])
@@ -209,7 +204,7 @@ def run():
     print(f"[train] Model saved → {MODEL_OUT}")
 
     with open(FEAT_LIST, "w") as f:
-        json.dump(FEATURE_COLS, f, indent=2)
+        json.dump(list(X.columns), f, indent=2)
     print(f"[train] Feature list saved → {FEAT_LIST}")
 
     train_report = {
@@ -220,7 +215,7 @@ def run():
         "final_precision_at20": float(final_p20),
         "n_samples": int(len(df)),
         "holdout_samples": int(len(y_ho)),
-        "feature_cols": FEATURE_COLS,
+        "feature_cols": list(X.columns),
         "class_weights": {str(k): float(v) for k, v in class_weights.items()},
         "classification_report": report,
         "class_labels": class_labels,

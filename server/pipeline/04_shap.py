@@ -27,130 +27,11 @@ KV_FEAT_PARQ = Path(__file__).parent.parent / "data" / "kathmandu_osm_features.p
 SHAP_GLOBAL = Path(__file__).parent.parent / "data" / "shap_global.json"
 SHAP_HOTSPOTS = Path(__file__).parent.parent / "data" / "shap_hotspots.json"
 
-INTERVENTION_MAP = {
-    "speed_limit": {
-        "label": "High speed limit",
-        "fix": "Install speed calming (rumble strips / speed humps)",
-        "structure": "Speed humps every 50m, advisory signage",
-        "risk_delta": -0.25,
-    },
-    "speed_variance_proxy": {
-        "label": "High speed variance",
-        "fix": "Speed cameras + variable message signs",
-        "structure": "Fixed-point speed camera, VMS board",
-        "risk_delta": -0.30,
-    },
-    "junction_risk": {
-        "label": "Dangerous junction",
-        "fix": "Redesign junction: dedicated turn lanes + signal phasing",
-        "structure": "Channelisation islands, protected left-turn phase",
-        "risk_delta": -0.35,
-    },
-    "junction_light_interact": {
-        "label": "Junction + poor lighting",
-        "fix": "Install junction lighting and reflective markers",
-        "structure": "LED overhead lighting at 15m height, cat's eyes",
-        "risk_delta": -0.30,
-    },
-    "light_risk": {
-        "label": "Poor lighting conditions",
-        "fix": "Street lighting upgrade",
-        "structure": "LED street lights every 30m, solar backup",
-        "risk_delta": -0.20,
-    },
-    "weather_risk": {
-        "label": "Adverse weather / monsoon",
-        "fix": "Drainage improvement + fog warning system",
-        "structure": "Road drainage channels, fog detection sensors",
-        "risk_delta": -0.15,
-    },
-    "weather_speed_interact": {
-        "label": "Speed + adverse weather",
-        "fix": "Variable speed limits in bad weather",
-        "structure": "Dynamic speed limit signs, IoT weather sensor",
-        "risk_delta": -0.20,
-    },
-    "carriageway_hazards": {
-        "label": "Carriageway hazards",
-        "fix": "Road surface repair + hazard marking",
-        "structure": "Pothole repair, raised pavement markers",
-        "risk_delta": -0.18,
-    },
-    "peak_hour": {
-        "label": "Peak hour congestion",
-        "fix": "Signal coordination + traffic warden deployment",
-        "structure": "Coordinated signal timing, peak-hour wardens",
-        "risk_delta": -0.15,
-    },
-    "is_night": {
-        "label": "Night-time accident risk",
-        "fix": "Night enforcement + reflective road marking",
-        "structure": "Thermoplastic road markings, night patrol",
-        "risk_delta": -0.18,
-    },
-    "pop_density_norm": {
-        "label": "High pedestrian/population density",
-        "fix": "Pedestrian crossing infrastructure",
-        "structure": "Overhead bridge or zebra crossing + refuge island",
-        "risk_delta": -0.25,
-    },
-    "steep_grade_flag": {
-        "label": "Steep grade",
-        "fix": "Truck runaway ramp + grade warning signs",
-        "structure": "Runaway ramp 200m below grade, advance warning signs",
-        "risk_delta": -0.30,
-    },
-    "dist_to_signal": {
-        "label": "No nearby traffic signal",
-        "fix": "Install traffic signal or roundabout",
-        "structure": "New signalised junction or mini-roundabout",
-        "risk_delta": -0.20,
-    },
-}
+INTERVENTION_MAP = {}
 
 
 def hotspot_to_features(spot: dict) -> dict:
-    reasons = [r.lower() for r in spot.get("reasons", [])]
-    sev_map = {"critical": 3, "high": 2, "moderate": 1, "low": 0}
-    sev = sev_map.get(spot.get("severity", "moderate"), 1)
-
-    has = lambda *kws: any(k in r for r in reasons for k in kws)
-
-    return {
-        "speed_limit": 60 if has("speed", "highway") else 40,
-        "number_of_vehicles": 4 if has("volume", "heavy") else 2,
-        "visibility_mi": 6.0 if has("fog", "mist", "haze") else 10.0,
-        "temperature_f": 60.0,
-        "wind_speed_mph": 8.0 if has("wind") else 4.0,
-        "precipitation_in": 0.1 if has("rain", "monsoon", "wet") else 0.0,
-        "humidity_pct": 70.0 if has("rain", "monsoon", "wet") else 50.0,
-        "pressure_in": 29.92,
-        "carriageway_hazards": 1 if has("hazard", "construction", "pothole") else 0,
-        "road_type_risk": 0.8 if has("highway", "ring road") else 0.5,
-        "junction_risk": 0.9 if has("junction", "merging", "intersection") else 0.3,
-        "light_risk": 0.8 if has("lighting", "night", "dark") else 0.2,
-        "weather_risk": 0.5 if has("wet", "monsoon", "rain") else 0.1,
-        "traffic_signal": 1 if has("signal") else 0,
-        "junction_detail": 1 if has("junction", "intersection") else 0,
-        "hour_sin": np.sin(2 * np.pi * 17 / 24),
-        "hour_cos": np.cos(2 * np.pi * 17 / 24),
-        "dow_sin": np.sin(2 * np.pi * 5 / 7),
-        "dow_cos": np.cos(2 * np.pi * 5 / 7),
-        "peak_hour": 1,
-        "festival_flag": 0,
-        "is_night": 0,
-        "speed_variance_proxy": 0.7 if sev >= 2 else 0.3,
-        "severity_exposure": (60 / 70.0) * (4 / 5.0) if sev >= 2 else 0.3,
-        "junction_light_interact": 0.6 if has("junction") and has("lighting") else 0.2,
-        "weather_speed_interact": 0.3,
-        "monsoon_flag": 1 if has("monsoon", "flood", "wet") else 0,
-        "steep_grade_flag": 1 if has("steep", "grade", "slope", "hill") else 0,
-        "dist_to_signal": 50 if has("signal") else 300,
-        "overhead_bridge": (
-            1 if "overhead bridge" in spot.get("source", "").lower() else 0
-        ),
-        "pop_density_norm": 0.8 if has("pedestrian", "commercial", "market") else 0.4,
-    }
+    raise RuntimeError("Hotspot feature synthesis is disabled (no placeholders).")
 
 
 def shap_to_interventions(
@@ -185,7 +66,7 @@ def _sample_training_features(feature_cols: list, n_samples: int = 2000) -> pd.D
         raise FileNotFoundError(f"Missing training features at {feat_path}")
     df = pd.read_parquet(feat_path)
     cols = [c for c in feature_cols if c in df.columns]
-    sampled = df[cols].fillna(0).astype(float)
+    sampled = df[cols].astype(float)
     if len(sampled) > n_samples:
         sampled = sampled.sample(n=n_samples, random_state=42)
     return sampled
@@ -213,19 +94,15 @@ def run():
 
     print(f"[shap] Processing {len(all_spots)} Kathmandu Valley hotspots")
 
-    rows = [hotspot_to_features(s) for s in all_spots]
-    base_df = pd.DataFrame(rows)
-
-    if KV_FEAT_PARQ.exists():
-        try:
-            kv_feat = pd.read_parquet(KV_FEAT_PARQ).sort_values("_spot_index")
-            for col in kv_feat.columns:
-                if col in base_df.columns:
-                    base_df[col] = kv_feat[col].values
-        except Exception as e:
-            print(f"[shap] OSM KV features ignored (error): {e}")
-
-    X_kv = base_df[feature_cols].fillna(0).astype(float)
+    if not KV_FEAT_PARQ.exists():
+        print("[shap] Kathmandu hotspot features not found. Skipping SHAP outputs.")
+        return
+    kv_feat = pd.read_parquet(KV_FEAT_PARQ).sort_values("_spot_index")
+    missing = [c for c in feature_cols if c not in kv_feat.columns]
+    if missing:
+        print(f"[shap] Missing Kathmandu feature columns; skipping SHAP: {missing}")
+        return
+    X_kv = kv_feat[feature_cols].astype(float)
 
     explainer = shap.TreeExplainer(model)
     shap_vals = explainer.shap_values(X_kv)
