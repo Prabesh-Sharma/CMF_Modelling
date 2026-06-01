@@ -1,407 +1,374 @@
 """
-pipeline/02_features.py
-────────────────────────
-Builds the feature matrix from raw_training.parquet.
-Uses heuristic + encoded features, with optional OSM enrichment.
+Build Nepali crash features and cluster outputs for the UI.
 
-Input:   data/raw_training.parquet
-Output:  data/features.parquet
-Optional: data/kathmandu_osm_features.parquet
+Inputs:
+  data/raw_crashes.parquet
+  data/inputs/02_road_segments_gi_star.csv
+
+Outputs:
+  data/features.parquet
+  data/crash_clusters.json
+  data/crash_map.json
 """
 
-import pandas as pd
-import numpy as np
+from collections import Counter
 from pathlib import Path
+import gzip
 import json
 
-RAW = Path(__file__).parent.parent / "data" / "raw_training.parquet"
-FEAT_OUT = Path(__file__).parent.parent / "data" / "features.parquet"
-KV_JSON = Path(__file__).parent.parent / "data" / "kathmandu_hotspots.json"
-KV_OUT = Path(__file__).parent.parent / "data" / "kathmandu_osm_features.parquet"
+import numpy as np
+import pandas as pd
+from sklearn.cluster import DBSCAN
+from scipy.spatial import cKDTree
 
-ENABLE_OSM = True
-OSM_NETWORK_TYPE = "drive"
-OSM_BUFFER_DEG = 0.02  # ~2km buffer (approx)
-OSM_MAX_POINTS = 50000
-OSM_MAX_DEG_RANGE = 1.0
 
-ROAD_TYPE_RISK = {
-    1: 0.3,
-    2: 0.5,
-    3: 0.4,
-    6: 0.8,
-    7: 0.6,
-    9: 0.2,
-    12: 0.7,
-}
+BASE = Path(__file__).resolve().parents[1]
+RAW = BASE / "data" / "raw_crashes.parquet"
+SEGMENTS_CSV = BASE / "data" / "inputs" / "02_road_segments_gi_star.csv"
+FEATURES_OUT = BASE / "data" / "features.parquet"
+CLUSTERS_OUT = BASE / "data" / "crash_clusters.json"
+CRASH_MAP_OUT = BASE / "data" / "crash_map.json"
+OSM_ROADS_OUT = BASE / "data" / "osm_roads.json.gz"
 
-JUNCTION_RISK = {
-    0: 0.1,
-    1: 0.9,
-    2: 0.7,
-    3: 0.8,
-    5: 0.6,
-    6: 0.5,
-    7: 0.4,
-    8: 0.3,
-    9: 0.2,
-}
+EARTH_RADIUS_M = 6_371_000
+CLUSTER_EPS_M = 120
+CLUSTER_MIN_SAMPLES = 8
+OSM_MAX_CRASH_DISTANCE_M = 35
 
-LIGHT_RISK = {
-    1: 0.2,
-    4: 0.8,
-    5: 1.0,
-    6: 0.9,
-    7: 0.7,
-}
-
-WEATHER_RISK = {
-    1: 0.1,
-    2: 0.5,
-    3: 0.7,
-    4: 0.6,
-    5: 0.8,
-    6: 0.4,
-    7: 0.3,
-    8: 0.2,
-    9: 0.9,
+UI_SEVERITY_BUCKETS = ["critical", "high", "moderate", "low"]
+RISK_LEVEL_TO_SCORE = {
+    "critical": 0.92,
+    "high": 0.74,
+    "moderate": 0.52,
+    "low": 0.28,
 }
 
 
-def cyclic_encode(series: pd.Series, period: int):
-    angle = 2 * np.pi * series / period
-    return np.sin(angle), np.cos(angle)
+def _download_osm_roads(df: pd.DataFrame) -> list[dict]:
+    import requests
 
-
-def peak_hour_flag(hour: pd.Series) -> pd.Series:
-    return ((hour.between(7, 10)) | (hour.between(16, 20))).astype(int)
-
-
-def festival_risk_flag(day_of_week: pd.Series) -> pd.Series:
-    return day_of_week.isin([6, 7]).astype(int)
-
-
-def speed_variance_proxy(df: pd.DataFrame) -> pd.Series:
-    return (
-        (df.get("speed_limit", 30) / 70.0) * 0.4
-        + df.get("junction_risk", 0.0) * 0.3
-        + df.get("light_risk", 0.0) * 0.3
+    south = float(df["latitude"].min()) - 0.005
+    north = float(df["latitude"].max()) + 0.005
+    west = float(df["longitude"].min()) - 0.005
+    east = float(df["longitude"].max()) + 0.005
+    query = f"""
+    [out:json][timeout:120];
+    way["highway"~"^(motorway|trunk|primary|secondary|tertiary|residential|unclassified|living_street)$"]({south},{west},{north},{east});
+    out geom;
+    """
+    print("[features] Downloading road geometry from OpenStreetMap Overpass API...")
+    response = requests.get(
+        "https://overpass-api.de/api/interpreter",
+        params={"data": query},
+        headers={"User-Agent": "SafeRoute-Hackathon-Demo/1.0"},
+        timeout=180,
     )
+    response.raise_for_status()
+    payload = response.json()
+    roads = []
+    for element in payload.get("elements", []):
+        geometry = element.get("geometry", [])
+        if len(geometry) < 2:
+            continue
+        roads.append(
+            {
+                "osm_id": int(element["id"]),
+                "name": element.get("tags", {}).get("name", "Unnamed road"),
+                "highway": element.get("tags", {}).get("highway", "road"),
+                "coordinates": [[float(p["lat"]), float(p["lon"])] for p in geometry],
+            }
+        )
+    if not roads:
+        raise RuntimeError("OpenStreetMap returned no road geometry for the crash bounds")
+    with gzip.open(OSM_ROADS_OUT, "wt", encoding="utf-8") as f:
+        json.dump({"roads": roads}, f, separators=(",", ":"))
+    print(f"[features] Cached {len(roads):,} OSM roads -> {OSM_ROADS_OUT}")
+    return roads
 
 
-def _parse_maxspeed(val, default_kph=50):
-    if val is None:
-        return default_kph
-    if isinstance(val, list):
-        val = val[0]
-    if isinstance(val, (int, float)):
-        return float(val)
-    s = str(val).lower()
-    is_mph = "mph" in s or "miles" in s
-    is_kph = "kph" in s or "km/h" in s or "kmh" in s
-    nums = "".join(ch if (ch.isdigit() or ch == ".") else " " for ch in s).split()
-    if not nums:
-        return default_kph
-    speed = float(nums[0])
-    if is_mph and not is_kph:
-        return speed * 1.60934
-    return speed
+def _load_osm_roads(df: pd.DataFrame) -> list[dict]:
+    if OSM_ROADS_OUT.exists():
+        with gzip.open(OSM_ROADS_OUT, "rt", encoding="utf-8") as f:
+            return json.load(f)["roads"]
+    return _download_osm_roads(df)
 
 
-def _highway_to_risk(highway):
-    if isinstance(highway, list):
-        highway = highway[0]
-    if not highway:
-        return 0.5
-    h = str(highway).lower()
-    if h in ["motorway", "trunk"]:
-        return 0.9
-    if h in ["primary"]:
-        return 0.8
-    if h in ["secondary"]:
-        return 0.7
-    if h in ["tertiary"]:
-        return 0.6
-    if h in ["residential", "service"]:
-        return 0.4
-    if h in ["unclassified", "track"]:
-        return 0.3
-    return 0.5
+def _sample_road_points(roads: list[dict]) -> tuple[np.ndarray, list[dict]]:
+    points = []
+    metadata = []
+    for road in roads:
+        coords = road["coordinates"]
+        for start, end in zip(coords, coords[1:]):
+            lat1, lon1 = start
+            lat2, lon2 = end
+            distance_m = np.hypot((lat2 - lat1) * 111_000, (lon2 - lon1) * 98_000)
+            steps = max(1, int(np.ceil(distance_m / 12)))
+            for step in range(steps + 1):
+                ratio = step / steps
+                points.append([lat1 + (lat2 - lat1) * ratio, lon1 + (lon2 - lon1) * ratio])
+                metadata.append(road)
+    return np.asarray(points), metadata
 
 
-def _build_osm_graph_from_points(lat: np.ndarray, lon: np.ndarray):
-    import osmnx as ox
+def _snap_crashes_to_osm_roads(df: pd.DataFrame) -> pd.DataFrame:
+    roads = _load_osm_roads(df)
+    road_points, road_metadata = _sample_road_points(roads)
+    mean_lat = float(df["latitude"].mean())
+    lat_scale = 111_000.0
+    lon_scale = 111_000.0 * np.cos(np.radians(mean_lat))
+    tree = cKDTree(road_points * np.array([lat_scale, lon_scale]))
+    distances, indices = tree.query(
+        df[["latitude", "longitude"]].to_numpy() * np.array([lat_scale, lon_scale]),
+        k=1,
+    )
+    snapped = df.copy()
+    nearest = road_points[indices]
+    snapped["original_latitude"] = snapped["latitude"]
+    snapped["original_longitude"] = snapped["longitude"]
+    snapped["latitude"] = nearest[:, 0]
+    snapped["longitude"] = nearest[:, 1]
+    snapped["road_distance_m"] = distances.round(1)
+    snapped["osm_road_name"] = [road_metadata[i]["name"] for i in indices]
+    snapped["osm_highway"] = [road_metadata[i]["highway"] for i in indices]
+    snapped = snapped[snapped["road_distance_m"] <= OSM_MAX_CRASH_DISTANCE_M].copy()
+    print(
+        f"[features] Kept {len(snapped):,}/{len(df):,} crashes within "
+        f"{OSM_MAX_CRASH_DISTANCE_M}m of OSM roads"
+    )
+    return snapped
 
-    north = float(lat.max()) + OSM_BUFFER_DEG
-    south = float(lat.min()) - OSM_BUFFER_DEG
-    east = float(lon.max()) + OSM_BUFFER_DEG
-    west = float(lon.min()) - OSM_BUFFER_DEG
 
-    ox.settings.use_cache = True
-    ox.settings.log_console = False
-
-    bbox = (west, south, east, north)
-    G = ox.graph_from_bbox(bbox, network_type=OSM_NETWORK_TYPE, simplify=True)
-    G = ox.add_edge_speeds(G)
-    return G
+def _top_values(series: pd.Series, limit: int = 3) -> list[str]:
+    return [str(v) for v in series.dropna().value_counts().head(limit).index.tolist()]
 
 
-def _osm_features_for_points(G, lat: np.ndarray, lon: np.ndarray):
-    import osmnx as ox
-    from scipy.spatial import cKDTree
+def _risk_level(max_severity: int, severity_index: float, crash_count: int) -> str:
+    if max_severity >= 4 or severity_index >= 120 or crash_count >= 45:
+        return "critical"
+    if max_severity >= 3 or severity_index >= 80 or crash_count >= 25:
+        return "high"
+    if severity_index >= 35 or crash_count >= 10:
+        return "moderate"
+    return "low"
 
-    try:
-        u, v, k = ox.distance.nearest_edges(G, lon, lat)
-    except Exception:
-        u, v, k = [], [], []
-        for x, y in zip(lon, lat):
-            eu, ev, ek = ox.distance.nearest_edges(G, x, y)
-            u.append(eu)
-            v.append(ev)
-            k.append(ek)
 
-    speed_kph = []
-    road_risk = []
-    overhead_bridge = []
+def _cluster_name(row: pd.Series, idx: int) -> str:
+    corridor = str(row.get("corridor", "Unknown corridor"))
+    cause = str(row.get("top_cause", "mixed causes"))
+    return f"{corridor} cluster {idx + 1}: {cause}"
 
-    for eu, ev, ek in zip(u, v, k):
-        data = G.get_edge_data(eu, ev, ek) or {}
-        speed = data.get("speed_kph", data.get("maxspeed", None))
-        speed_kph.append(_parse_maxspeed(speed))
-        road_risk.append(_highway_to_risk(data.get("highway", None)))
-        overhead_bridge.append(
-            1 if str(data.get("bridge", "")).lower() in ["yes", "true"] else 0
+
+def _recommended_interventions(causes: list[str], collisions: list[str]) -> list[str]:
+    text = " ".join(causes + collisions).lower()
+    recs: list[str] = []
+    if any(token in text for token in ["speed", "overtake"]):
+        recs.extend(["Speed calming", "Speed enforcement"])
+    if any(token in text for token in ["pedestrian", "crossing"]):
+        recs.extend(["Raised pedestrian crossing", "Median refuge"])
+    if any(token in text for token in ["alcohol"]):
+        recs.append("Targeted impaired-driving enforcement")
+    if any(token in text for token in ["turning", "lane", "rear end", "side"]):
+        recs.extend(["Lane markings", "Intersection channelization"])
+    if any(token in text for token in ["road condition", "weather"]):
+        recs.extend(["Surface maintenance", "Warning signage"])
+    recs.append("Crash investigation and road safety audit")
+    return list(dict.fromkeys(recs))[:4]
+
+
+def _cluster_features(df: pd.DataFrame) -> pd.DataFrame:
+    coords_rad = np.radians(df[["latitude", "longitude"]].to_numpy())
+    labels = DBSCAN(
+        eps=CLUSTER_EPS_M / EARTH_RADIUS_M,
+        min_samples=CLUSTER_MIN_SAMPLES,
+        metric="haversine",
+    ).fit_predict(coords_rad)
+    df = df.copy()
+    df["cluster_id"] = labels
+
+    grouped_rows = []
+    for cluster_id, group in df[df["cluster_id"] >= 0].groupby("cluster_id"):
+        crash_count = int(len(group))
+        severity_index = float(group["severity_score"].pow(2).sum())
+        max_severity = int(group["severity_score"].max())
+        top_causes = _top_values(group["cause"])
+        top_collisions = _top_values(group["collision_type"])
+        top_vehicles = _top_values(group["vehicle_type"])
+        top_corridor = str(group["corridor"].mode().iat[0])
+        road_anchor = group.sort_values(
+            ["severity_score", "road_distance_m"], ascending=[False, True]
+        ).iloc[0]
+        risk_level = _risk_level(max_severity, severity_index, crash_count)
+        grouped_rows.append(
+            {
+                "cluster_id": int(cluster_id),
+                "latitude": float(group["latitude"].mean()),
+                "longitude": float(group["longitude"].mean()),
+                "crash_count": crash_count,
+                "severity_index": round(severity_index, 2),
+                "max_severity_score": max_severity,
+                "risk_level": risk_level,
+                "risk_score": min(1.0, RISK_LEVEL_TO_SCORE[risk_level] + crash_count / 500.0),
+                "corridor": top_corridor,
+                "road_class": str(group["road_class"].mode().iat[0]),
+                "top_cause": top_causes[0] if top_causes else "Unknown",
+                "top_causes": top_causes,
+                "top_collisions": top_collisions,
+                "top_vehicles": top_vehicles,
+                "road_anchor_lat": round(float(road_anchor["latitude"]), 6),
+                "road_anchor_lon": round(float(road_anchor["longitude"]), 6),
+                "road_name": str(road_anchor["osm_road_name"]),
+                "accident_reports": {
+                    "fatal": int((group["severity"] == "Death").sum()),
+                    "major_injury": int((group["severity"] == "Major Injury").sum()),
+                    "minor_injury": int((group["severity"] == "Minor Injury").sum()),
+                    "property_damage_only": int((group["severity"] == "PDO").sum()),
+                    "pedestrian_related": int(
+                        group["collision_type"].str.contains("pedestrian", case=False, na=False).sum()
+                    ),
+                    "speed_related": int(
+                        group["cause"].str.contains("speed", case=False, na=False).sum()
+                    ),
+                    "turning_related": int(
+                        group["collision_type"].str.contains("turn", case=False, na=False).sum()
+                    ),
+                    "head_on": int(
+                        group["collision_type"].str.contains("head on", case=False, na=False).sum()
+                    ),
+                },
+                "recommended_interventions": _recommended_interventions(top_causes, top_collisions),
+            }
         )
 
-    street_counts = ox.stats.count_streets_per_node(G)
-    for n, c in street_counts.items():
-        G.nodes[n]["street_count"] = c
+    clusters = pd.DataFrame(grouped_rows).sort_values(
+        ["severity_index", "crash_count"], ascending=False
+    )
+    clusters = clusters.reset_index(drop=True)
+    clusters["ui_id"] = [f"cluster-{i + 1}" for i in range(len(clusters))]
+    clusters["name"] = [_cluster_name(row, i) for i, row in clusters.iterrows()]
+    return df, clusters
 
-    try:
-        nearest_nodes = ox.distance.nearest_nodes(G, lon, lat)
-    except Exception:
-        nearest_nodes = [ox.distance.nearest_nodes(G, x, y) for x, y in zip(lon, lat)]
 
-    junction_risk = []
-    for n in nearest_nodes:
-        sc = G.nodes[n].get("street_count", 1)
-        junction_risk.append(0.9 if sc >= 3 else 0.2)
+def _build_hotspots(clusters: pd.DataFrame) -> dict[str, list[dict]]:
+    buckets: dict[str, list[dict]] = {key: [] for key in UI_SEVERITY_BUCKETS}
+    for _, row in clusters.head(80).iterrows():
+        reasons = list(dict.fromkeys(row["top_causes"] + row["top_collisions"] + row["top_vehicles"]))[:6]
+        item = {
+            "id": row["ui_id"],
+            "name": row["name"],
+            "lat": round(float(row["latitude"]), 6),
+            "lon": round(float(row["longitude"]), 6),
+            "severity": row["risk_level"],
+            "reasons": reasons or ["Crash concentration"],
+            "source": "Nepali crash records 2019-2021",
+            "crash_count": int(row["crash_count"]),
+            "severity_index": float(row["severity_index"]),
+            "top_cause": row["top_cause"],
+            "road_class": row["road_class"],
+            "corridor": row["corridor"],
+            "road_anchor_lat": float(row["road_anchor_lat"]),
+            "road_anchor_lon": float(row["road_anchor_lon"]),
+            "road_name": row["road_name"],
+            "accident_reports": row["accident_reports"],
+            "recommended_interventions": row["recommended_interventions"],
+        }
+        buckets[row["risk_level"]].append(item)
+    return buckets
 
-    nodes = ox.graph_to_gdfs(G, nodes=True, edges=False)
-    signal_nodes = nodes[nodes.get("highway") == "traffic_signals"]
-    if len(signal_nodes) > 0:
-        tree = cKDTree(signal_nodes[["x", "y"]].values)
-        dist_deg, _ = tree.query(np.vstack([lon, lat]).T, k=1)
-        dist_to_signal = (dist_deg * 111_000.0).tolist()
-    else:
-        dist_to_signal = [500.0] * len(lat)
 
-    return {
-        "speed_limit": speed_kph,
-        "road_type_risk": road_risk,
-        "junction_risk": junction_risk,
-        "dist_to_signal": dist_to_signal,
-        "overhead_bridge": overhead_bridge,
+def _build_crash_points(df: pd.DataFrame, clusters: pd.DataFrame) -> list[dict]:
+    hotspot_ids = dict(zip(clusters["cluster_id"], clusters["ui_id"]))
+    display_limits = {"critical": 700, "high": 1100, "moderate": 900, "low": 500}
+    display_df = pd.concat(
+        [
+            group.sample(n=min(len(group), display_limits[level]), random_state=42)
+            for level, group in df.groupby("severity_level")
+        ]
+    ).sort_values(["severity_score", "crash_id"], ascending=[False, True])
+    records = []
+    for row in display_df.itertuples(index=False):
+        records.append(
+            {
+                "id": str(row.crash_id),
+                "lat": round(float(row.latitude), 6),
+                "lon": round(float(row.longitude), 6),
+                "severity": row.severity,
+                "severityLevel": row.severity_level,
+                "cause": row.cause,
+                "collisionType": row.collision_type,
+                "vehicleType": row.vehicle_type,
+                "roadClass": row.road_class,
+                "corridor": row.corridor,
+                "roadName": row.osm_road_name,
+                "roadDistanceMeters": float(row.road_distance_m),
+                "date": str(row.date),
+                "time": str(row.time),
+                "year": int(row.year),
+                "clusterId": int(row.cluster_id) if int(row.cluster_id) >= 0 else None,
+                "hotspotId": hotspot_ids.get(int(row.cluster_id)),
+            }
+        )
+    return records
+
+
+def _segment_summary() -> list[dict]:
+    if not SEGMENTS_CSV.exists():
+        return []
+    seg = pd.read_csv(SEGMENTS_CSV)
+    seg = seg.sort_values(["severity_index", "crash_count"], ascending=False).head(80)
+    rows = []
+    for row in seg.itertuples(index=False):
+        rows.append(
+            {
+                "id": f"segment-{int(row.segment_id)}",
+                "name": row.corridor_name,
+                "roadClass": row.road_class,
+                "start": [float(row.start_lat), float(row.start_lon)],
+                "end": [float(row.end_lat), float(row.end_lon)],
+                "crashCount": int(row.crash_count),
+                "severityIndex": float(row.severity_index),
+                "giZScore": float(row.gi_zscore),
+                "classification": row.classification,
+            }
+        )
+    return rows
+
+
+def run() -> None:
+    if not RAW.exists():
+        raise FileNotFoundError(f"Run 01_ingest.py first: {RAW}")
+
+    df = _snap_crashes_to_osm_roads(pd.read_parquet(RAW))
+    df, clusters = _cluster_features(df)
+
+    df.to_parquet(FEATURES_OUT, index=False)
+
+    cluster_json = clusters.to_dict(orient="records")
+    CLUSTERS_OUT.write_text(json.dumps({"clusters": cluster_json}, indent=2), encoding="utf-8")
+
+    severity_counts = Counter(df["severity_level"])
+    crash_map = {
+        "metadata": {
+            "title": "Kathmandu Valley crash hotspots from Nepali crash records",
+            "sources": [
+                "server/data/inputs/01_raw_crash_records.csv",
+                "server/data/inputs/02_road_segments_gi_star.csv",
+            ],
+            "coverage": "Nepal crash records, 2019-2021",
+            "total_hotspots": int(len(clusters)),
+            "total_crashes": int(len(df)),
+            "severity_counts": {key: int(severity_counts.get(key, 0)) for key in UI_SEVERITY_BUCKETS},
+        },
+        "hotspots": _build_hotspots(clusters),
+        "clusters": cluster_json,
+        "segments": _segment_summary(),
+        "crashes": _build_crash_points(df, clusters),
+        "heatmap": [],
     }
+    CRASH_MAP_OUT.write_text(json.dumps(crash_map, indent=2), encoding="utf-8")
 
-
-def _maybe_osm_enrich(df: pd.DataFrame):
-    if not ENABLE_OSM:
-        return df
-    if len(df) > OSM_MAX_POINTS:
-        print(f"[features] OSM enrichment skipped (too many rows: {len(df):,})")
-        return df
-    lat_span = float(df["latitude"].max() - df["latitude"].min())
-    lon_span = float(df["longitude"].max() - df["longitude"].min())
-    if lat_span > OSM_MAX_DEG_RANGE or lon_span > OSM_MAX_DEG_RANGE:
-        print(
-            "[features] OSM enrichment skipped (bounds too large: "
-            f"lat_span={lat_span:.2f}, lon_span={lon_span:.2f})"
-        )
-        return df
-    try:
-        import osmnx  # noqa: F401
-    except Exception as e:
-        print(f"[features] OSM enrichment skipped (missing osmnx): {e}")
-        return df
-    try:
-        print("[features] Enriching with OSM (training bounds)...")
-        G = _build_osm_graph_from_points(df["latitude"].values, df["longitude"].values)
-        osm_feat = _osm_features_for_points(
-            G, df["latitude"].values, df["longitude"].values
-        )
-
-        # Fill only where missing
-        for k, v in osm_feat.items():
-            if k in df.columns:
-                df[k] = df[k].fillna(pd.Series(v, index=df.index))
-            else:
-                df[k] = v
-        return df
-    except Exception as e:
-        print(f"[features] OSM enrichment skipped (error): {e}")
-        return df
-
-
-def build_features(df: pd.DataFrame) -> pd.DataFrame:
-    feat = pd.DataFrame(index=df.index)
-
-    def to_numeric(series, default):
-        return pd.to_numeric(series, errors="coerce").fillna(default)
-
-    feat["speed_limit"] = df.get("speed_limit", pd.Series(30, index=df.index)).fillna(
-        30
-    )
-    feat["visibility_mi"] = to_numeric(
-        df.get("visibility", pd.Series(10.0, index=df.index)), 10.0
-    )
-    feat["temperature_f"] = to_numeric(
-        df.get("temperature", pd.Series(60.0, index=df.index)), 60.0
-    )
-    feat["wind_speed_mph"] = to_numeric(
-        df.get("wind_speed", pd.Series(5.0, index=df.index)), 5.0
-    )
-    feat["precipitation_in"] = to_numeric(
-        df.get("precipitation", pd.Series(0.0, index=df.index)), 0.0
-    )
-    feat["humidity_pct"] = to_numeric(
-        df.get("humidity", pd.Series(50.0, index=df.index)), 50.0
-    )
-    feat["pressure_in"] = to_numeric(
-        df.get("pressure", pd.Series(29.92, index=df.index)), 29.92
-    )
-    feat["traffic_signal"] = (
-        df.get("traffic_signal", pd.Series(0, index=df.index))
-        .fillna(0)
-        .astype(int)
-    )
-    feat["junction_detail"] = (
-        df.get("junction_detail", pd.Series(0, index=df.index))
-        .fillna(0)
-        .astype(int)
-    )
-    feat["number_of_vehicles"] = df.get(
-        "number_of_vehicles", pd.Series(2, index=df.index)
-    ).fillna(2)
-    feat["carriageway_hazards"] = df.get(
-        "carriageway_hazards", pd.Series(0, index=df.index)
-    ).fillna(0)
-
-    if "road_type_risk" in df.columns:
-        feat["road_type_risk"] = df["road_type_risk"].fillna(0.5)
-    else:
-        feat["road_type_risk"] = (
-            df.get("road_type", pd.Series(6, index=df.index))
-            .map(ROAD_TYPE_RISK)
-            .fillna(0.5)
-        )
-
-    if "junction_risk" in df.columns:
-        feat["junction_risk"] = df["junction_risk"].fillna(0.3)
-    else:
-        feat["junction_risk"] = (
-            df.get("junction_detail", pd.Series(0, index=df.index))
-            .map(JUNCTION_RISK)
-            .fillna(0.3)
-        )
-
-    feat["light_risk"] = (
-        df.get("light_conditions", pd.Series(1, index=df.index))
-        .map(LIGHT_RISK)
-        .fillna(0.2)
-    )
-    feat["weather_risk"] = (
-        df.get("weather_conditions", pd.Series(1, index=df.index))
-        .map(WEATHER_RISK)
-        .fillna(0.2)
-    )
-
-    hour = df.get("hour_of_day", pd.Series(12, index=df.index)).fillna(12)
-    dow = df.get("day_of_week", pd.Series(1, index=df.index)).fillna(1)
-
-    feat["hour_sin"], feat["hour_cos"] = cyclic_encode(hour, 24)
-    feat["dow_sin"], feat["dow_cos"] = cyclic_encode(dow, 7)
-    feat["peak_hour"] = peak_hour_flag(hour)
-    feat["festival_flag"] = festival_risk_flag(dow)
-    feat["is_night"] = (hour.between(20, 24) | hour.between(0, 6)).astype(int)
-
-    feat["speed_variance_proxy"] = speed_variance_proxy(feat)
-    feat["severity_exposure"] = (
-        feat["speed_limit"] / 70.0 * feat["number_of_vehicles"] / 5.0
-    )
-    feat["junction_light_interact"] = feat["junction_risk"] * feat["light_risk"]
-    feat["weather_speed_interact"] = feat["weather_risk"] * (feat["speed_limit"] / 70.0)
-
-    lat = df["latitude"].values
-    lon = df["longitude"].values
-    feat["lat_bin"] = np.round(lat * 20) / 20
-    feat["lon_bin"] = np.round(lon * 20) / 20
-
-    feat["monsoon_flag"] = df.get("monsoon_flag", pd.Series(0, index=df.index)).fillna(
-        0
-    )
-    feat["steep_grade_flag"] = df.get(
-        "steep_grade_flag", pd.Series(0, index=df.index)
-    ).fillna(0)
-    feat["dist_to_signal"] = df.get(
-        "dist_to_signal", pd.Series(500, index=df.index)
-    ).fillna(500)
-    feat["overhead_bridge"] = df.get(
-        "overhead_bridge", pd.Series(0, index=df.index)
-    ).fillna(0)
-    feat["pop_density_norm"] = df.get(
-        "pop_density_norm", pd.Series(0.5, index=df.index)
-    ).fillna(0.5)
-
-    feat["severity"] = df["severity"].astype(int)
-    feat["latitude"] = df["latitude"]
-    feat["longitude"] = df["longitude"]
-    feat["source"] = df.get("source", "unknown")
-
-    return feat
-
-
-def run():
-    print("[features] Loading raw data...")
-    df = pd.read_parquet(RAW)
-    print(f"[features] {len(df):,} rows")
-
-    df = _maybe_osm_enrich(df)
-    feat = build_features(df)
-
-    FEAT_OUT.parent.mkdir(parents=True, exist_ok=True)
-    feat.to_parquet(FEAT_OUT, index=False)
-    print(f"[features] Feature matrix: {feat.shape}")
-    print(f"[features] Saved → {FEAT_OUT}")
-
-    if ENABLE_OSM and KV_JSON.exists():
-        try:
-            print("[features] Building Kathmandu OSM features for showcase...")
-            kv = json.loads(KV_JSON.read_text())
-            spots = []
-            for sev in ["critical", "high", "moderate", "low"]:
-                spots.extend(kv["hotspots"].get(sev, []))
-            kv_df = pd.DataFrame(spots)
-            kv_df["_spot_index"] = range(len(kv_df))
-
-            G_kv = _build_osm_graph_from_points(
-                kv_df["lat"].values, kv_df["lon"].values
-            )
-            kv_feat = _osm_features_for_points(
-                G_kv, kv_df["lat"].values, kv_df["lon"].values
-            )
-
-            kv_df["speed_limit"] = kv_feat["speed_limit"]
-            kv_df["road_type_risk"] = kv_feat["road_type_risk"]
-            kv_df["junction_risk"] = kv_feat["junction_risk"]
-            kv_df["dist_to_signal"] = kv_feat["dist_to_signal"]
-            kv_df["overhead_bridge"] = kv_feat["overhead_bridge"]
-
-            KV_OUT.parent.mkdir(parents=True, exist_ok=True)
-            kv_df.to_parquet(KV_OUT, index=False)
-            print(f"[features] Kathmandu OSM features saved → {KV_OUT}")
-        except Exception as e:
-            print(f"[features] Kathmandu showcase skipped (error): {e}")
+    print(f"[features] Saved {len(df):,} feature rows -> {FEATURES_OUT}")
+    print(f"[features] Saved {len(clusters):,} clusters -> {CLUSTERS_OUT}")
+    print(f"[features] Saved crash map payload -> {CRASH_MAP_OUT}")
 
 
 if __name__ == "__main__":

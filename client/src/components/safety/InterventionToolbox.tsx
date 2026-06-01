@@ -4,19 +4,50 @@ import { Badge } from "@/components/ui/badge";
 import { ChevronDown, ChevronRight, GripVertical } from "lucide-react";
 import { INTERVENTION_CATEGORIES, type InterventionType } from "@/lib/interventions";
 import { cn } from "@/lib/utils";
+import { evaluateIntervention, type ModelRecommendation } from "@/lib/api/chat.functions";
 
 interface Props {
   onDragStart: (intervention: InterventionType) => void;
   onDragEnd: () => void;
+  onAddCustom: (recommendation: ModelRecommendation) => void;
 }
 
-export function InterventionToolbox({ onDragStart, onDragEnd }: Props) {
+export function InterventionToolbox({ onDragStart, onDragEnd, onAddCustom }: Props) {
   const [open, setOpen] = useState<Record<string, boolean>>({
     "Speed Management": true,
   });
+  const [custom, setCustom] = useState("");
+  const [evaluating, setEvaluating] = useState(false);
 
   return (
     <div className="space-y-2">
+      <div className="rounded-md border bg-card p-2">
+        <div className="mb-1 text-xs font-semibold">Your Recommendation</div>
+        <div className="flex gap-1">
+          <input
+            className="min-w-0 flex-1 rounded border bg-background px-2 py-1 text-xs"
+            placeholder="e.g. overhead bridge"
+            value={custom}
+            onChange={(event) => setCustom(event.target.value)}
+          />
+          <button
+            type="button"
+            className="rounded bg-primary px-2 py-1 text-xs text-primary-foreground"
+            disabled={evaluating || custom.trim().length < 2}
+            onClick={async () => {
+              setEvaluating(true);
+              try {
+                onAddCustom(await evaluateIntervention({ data: { name: custom.trim() } }));
+                setCustom("");
+              } finally {
+                setEvaluating(false);
+              }
+            }}
+          >
+            {evaluating ? "..." : "Test CMF"}
+          </button>
+        </div>
+      </div>
       {INTERVENTION_CATEGORIES.map((cat) => {
         const isOpen = open[cat.category] ?? false;
         return (
@@ -86,7 +117,6 @@ function InterventionCard({
             <Badge variant="outline" className="h-4 px-1 py-0 text-[10px]">
               CMF {intervention.cmf.toFixed(2)}
             </Badge>
-            <span className="tabular-nums">${intervention.cost.toLocaleString()}</span>
           </div>
         </div>
       </CardContent>

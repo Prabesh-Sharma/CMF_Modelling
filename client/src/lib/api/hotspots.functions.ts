@@ -17,34 +17,20 @@ export const fetchHotspots = createServerFn({ method: "GET" }).handler(
           const json: unknown = await res.json();
           return HotspotApiResponseSchema.parse(json);
         }
-        console.warn(
-          `Fetch from ${API_BASE}/api/hotspots failed with status ${res.status}. Falling back to local JSON data.`,
-        );
+        console.warn(`Fetch from ${API_BASE}/api/hotspots failed with status ${res.status}.`);
       } catch (error) {
-        console.warn(
-          `Failed to fetch from ${API_BASE}/api/hotspots. Falling back to local JSON data.`,
-          error,
-        );
+        console.warn(`Failed to fetch from ${API_BASE}/api/hotspots.`, error);
       }
     }
 
-    // 2. Default/Fallback: Load data from client/data/kathmandu_hotspots.json
-    // Using dynamic imports for server-only built-in modules ensures that
-    // Vite completely ignores them when bundling for the browser.
+    // Fallback for local development when the FastAPI backend is not running.
     const fs = await import("fs");
     const path = await import("path");
 
-    const jsonPath = path.resolve(
-      process.cwd(),
-      "..",
-      "server",
-      "data",
-      "shap_hotspots.json",
-    );
+    const jsonPath = path.resolve(process.cwd(), "..", "server", "data", "crash_map.json");
     const rawData = fs.readFileSync(jsonPath, "utf-8");
     const json: unknown = JSON.parse(rawData);
 
-    // Validate using Zod to guarantee runtime type safety
     return HotspotApiResponseSchema.parse(json);
   },
 );

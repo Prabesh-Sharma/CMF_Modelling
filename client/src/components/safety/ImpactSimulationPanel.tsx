@@ -1,5 +1,4 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { TrendingDown } from "lucide-react";
 import type { AppliedIntervention } from "@/lib/interventions";
 import type { RoadSegment } from "@/lib/road-data";
@@ -34,27 +33,19 @@ export function ImpactSimulationPanel({ intervention, road }: Props) {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3 pt-0">
-        <div className="text-xs text-muted-foreground">{intervention.interventionType}</div>
+        <div className="space-y-1 text-xs text-muted-foreground">
+          <div>{intervention.interventionType}</div>
+          <div>
+            CMF is a crash multiplier: {baseline} × {intervention.cmf.toFixed(2)} = {predicted}
+          </div>
+          {intervention.rationale ? <div>{intervention.rationale}</div> : null}
+        </div>
 
         <div className="grid grid-cols-2 gap-2">
           <Stat label="Current Crashes" value={baseline.toString()} />
           <Stat label="CMF" value={intervention.cmf.toFixed(2)} />
           <Stat label="Predicted After" value={predicted.toString()} />
           <Stat label="Reduction" value={`${reduction}%`} highlight />
-        </div>
-
-        <div className="rounded-md border bg-muted/40 p-2">
-          <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Cost</div>
-          <div className="mt-0.5 flex items-center justify-between">
-            <span className="text-sm font-semibold tabular-nums">
-              ${intervention.cost.toLocaleString()}
-            </span>
-            <Badge variant="outline" className="text-[10px]">
-              $
-              {Math.round(intervention.cost / Math.max(baseline - predicted, 0.1)).toLocaleString()}{" "}
-              / crash avoided
-            </Badge>
-          </div>
         </div>
       </CardContent>
     </Card>

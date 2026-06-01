@@ -1,16 +1,40 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BarChart3 } from "lucide-react";
-import type { AppliedIntervention } from "@/lib/interventions";
+import type { AppliedIntervention, GeneratedIntervention } from "@/lib/interventions";
 import type { RoadSegment } from "@/lib/road-data";
+
+function midpointPercent(value: string) {
+  const values = value.match(/\d+(?:\.\d+)?/g)?.map(Number) ?? [];
+  if (values.length === 0) return 0;
+  if (values.length === 1) return values[0];
+  return (values[0] + values[1]) / 2;
+}
 
 export function SimulationResults({
   interventions,
   roads,
+  selectedRoad,
+  generatedInterventions = [],
 }: {
   interventions: AppliedIntervention[];
   roads: RoadSegment[];
+  selectedRoad?: RoadSegment | null;
+  generatedInterventions?: GeneratedIntervention[];
 }) {
-  const baselineTotal = roads.reduce((s, r) => s + r.predictedAnnualCrashes, 0);
+  const generatedReductionMidpoints = generatedInterventions.map((i) =>
+    midpointPercent(i.reduction),
+  );
+  const generatedAverageReduction =
+    generatedReductionMidpoints.length > 0
+      ? generatedReductionMidpoints.reduce((sum, value) => sum + value, 0) /
+        generatedReductionMidpoints.length
+      : 0;
+  const hasGeneratedClusterSimulation = generatedInterventions.length > 0;
+
+  // CHANGE 3 — intervention generation
+  const baselineTotal = hasGeneratedClusterSimulation
+    ? roads.reduce((s, r) => s + r.predictedAnnualCrashes, 0)
+    : roads.reduce((s, r) => s + r.predictedAnnualCrashes, 0);
 
   // Aggregate: per road, multiply CMFs of interventions associated (by proximity to road points)
   const roadCmf = new Map<string, number>();
@@ -21,16 +45,23 @@ export function SimulationResults({
     }
   }
 
-  let projectedTotal = 0;
-  for (const r of roads) {
-    const cmf = roadCmf.get(r.id) ?? 1;
-    projectedTotal += r.predictedAnnualCrashes * cmf;
+  let projectedTotal = hasGeneratedClusterSimulation
+    ? baselineTotal - baselineTotal * (generatedAverageReduction / 100)
+    : 0;
+  if (!hasGeneratedClusterSimulation) {
+    for (const r of roads) {
+      const cmf = roadCmf.get(r.id) ?? 1;
+      projectedTotal += r.predictedAnnualCrashes * cmf;
+    }
   }
   projectedTotal = Math.round(projectedTotal * 10) / 10;
 
-  const totalCost = interventions.reduce((s, i) => s + i.cost, 0);
   const reduction = Math.max(0, baselineTotal - projectedTotal);
-  const reductionPct = baselineTotal ? Math.round((reduction / baselineTotal) * 100) : 0;
+  const reductionPct = hasGeneratedClusterSimulation
+    ? Math.round(generatedAverageReduction)
+    : baselineTotal
+      ? Math.round((reduction / baselineTotal) * 100)
+      : 0;
 
   return (
     <Card>
@@ -43,7 +74,7 @@ export function SimulationResults({
         <Stat label="Baseline" value={baselineTotal.toString()} suffix="crashes/yr" />
         <Stat label="Projected" value={projectedTotal.toString()} suffix="crashes/yr" />
         <Stat label="Reduction" value={`${reductionPct}%`} highlight />
-        <Stat label="Total Cost" value={`$${(totalCost / 1000).toFixed(1)}k`} />
+        <Stat label="Applied" value={generatedInterventions.length.toString()} suffix="interventions" />
       </CardContent>
     </Card>
   );

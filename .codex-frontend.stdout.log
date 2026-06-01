@@ -1,0 +1,83 @@
+
+> dev
+> vite dev --host 127.0.0.1 --port 5173
+
+
+  [32m[1mVITE[22m v7.3.3[39m  [2mready in [0m[1m1007[22m[2m[0m ms[22m
+
+  [32m➜[39m  [1mLocal[22m:   [36mhttp://127.0.0.1:[1m5173[22m/[39m
+[vite] connected.
+[2m22:25:29[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2msrc/lib/api/hotspots.functions.ts[22m
+[vite] program reload
+[2m23:32:23[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2msrc/lib/api/hotspots.functions.ts[22m
+[vite] program reload
+[2m23:40:47[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mhmr update [39m[2m/src/lib/api/hotspots.functions.ts?tss-serverfn-split[22m
+[vite] hot updated: /src/lib/api/hotspots.functions.ts?tss-serverfn-split
+[2m23:41:00[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2msrc/lib/road-data.ts[22m
+[2m23:41:09[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2msrc/lib/road-data.ts[22m
+[2m23:41:22[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2msrc/hooks/use-hotspots.ts[22m
+[2m23:41:31[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2msrc/hooks/use-hotspots.ts[22m
+[2m23:42:30[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2msrc/routes/index.tsx[22m
+[2m23:42:44[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2msrc/routes/index.tsx[22m
+[2m23:42:53[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2msrc/routes/index.tsx[22m
+[2m23:42:59[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2msrc/routes/index.tsx[22m
+[2m23:43:04[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2msrc/routes/index.tsx[22m
+[2m23:44:12[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2msrc/lib/api/hotspots.functions.ts[22m
+[vite] program reload
+[2m23:45:24[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2msrc/lib/road-data.ts[22m
+[2m23:45:55[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2msrc/lib/road-data.ts[22m
+[2m23:46:12[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2msrc/components/safety/HotspotPanel.tsx[22m
+[2m23:46:34[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2msrc/routes/index.tsx[22m
+[2m05:36:14[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mhmr update [39m[2m/src/lib/api/hotspots.functions.ts?tss-serverfn-split[22m
+[vite] hot updated: /src/lib/api/hotspots.functions.ts?tss-serverfn-split
+[2m05:36:19[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2msrc/lib/interventions.ts[22m
+[vite] program reload
+[2m05:36:31[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2msrc/lib/api/chat.functions.ts[22m
+[2m05:36:45[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2msrc/components/safety/MapAssistant.tsx[22m
+[2m05:37:01[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2msrc/components/safety/InterventionToolbox.tsx[22m
+[2m05:37:59[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2msrc/routes/index.tsx[22m
+[2m05:38:05[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2msrc/routes/index.tsx[22m
+[2m05:38:13[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2msrc/components/safety/AppliedInterventionsPanel.tsx[22m
+[2m05:48:50[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2msrc/lib/api/chat.functions.ts[22m
+[vite] program reload
+[2m05:49:16[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2msrc/components/safety/MapAssistant.tsx[22m
+[2m05:49:33[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2msrc/components/safety/ImpactSimulationPanel.tsx[22m
+[2m06:26:17[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mhmr update [39m[2m/src/lib/api/hotspots.functions.ts?tss-serverfn-split[22m
+[vite] hot updated: /src/lib/api/hotspots.functions.ts?tss-serverfn-split
+[2m06:26:31[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2msrc/lib/road-data.ts[22m
+[vite] program reload
+[2m06:26:38[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2msrc/lib/api/chat.functions.ts[22m
+[2m06:26:46[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2msrc/routes/index.tsx[22m
+[2m06:27:05[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2msrc/components/safety/HotspotPanel.tsx[22m
+[2m06:27:33[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2msrc/routes/index.tsx[22m
+[2m06:45:34[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2msrc/lib/interventions.ts[22m
+[vite] program reload
+[2m06:47:58[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2msrc/routes/index.tsx[22m
+[2m06:48:10[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2msrc/routes/index.tsx[22m
+[2m06:48:19[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2msrc/routes/index.tsx[22m
+[2m06:48:40[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2msrc/components/safety/AppliedInterventionsPanel.tsx[22m
+[2m06:49:00[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2msrc/components/safety/SimulationResults.tsx[22m
+[2m06:49:08[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2msrc/components/safety/SimulationResults.tsx[22m
+[2m06:49:15[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2msrc/styles.css[22m
+[2m06:49:37[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2msrc/components/safety/SimulationResults.tsx[22m
+[2m06:54:59[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2msrc/lib/interventions.ts[22m
+[vite] program reload
+[2m06:55:25[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2msrc/components/safety/AppliedInterventionsPanel.tsx[22m
+[2m06:55:39[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2msrc/components/safety/SimulationResults.tsx[22m
+[2m06:55:49[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2msrc/components/safety/ImpactSimulationPanel.tsx[22m
+[2m06:55:56[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2msrc/components/safety/InterventionToolbox.tsx[22m
+[2m06:56:31[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2msrc/components/safety/HotspotPanel.tsx[22m
+[2m06:57:06[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2msrc/routes/index.tsx[22m
+[2m06:58:00[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2msrc/routes/index.tsx[22m
+[2m06:58:19[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2msrc/components/safety/SimulationResults.tsx[22m
+[2m06:58:37[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2msrc/routes/index.tsx[22m
+[2m06:58:42[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2msrc/routes/index.tsx[22m
+[2m06:58:57[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2msrc/routes/index.tsx[22m
+[2m06:59:31[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2msrc/routes/index.tsx[22m
+[2m07:08:22[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2msrc/lib/interventions.ts[22m
+[vite] program reload
+[2m07:08:59[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2msrc/routes/index.tsx[22m
+[2m07:10:31[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2msrc/routes/index.tsx[22m
+[2m07:11:53[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2msrc/routes/index.tsx[22m
+[2m07:12:08[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2msrc/routes/index.tsx[22m
+[2m07:12:16[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2msrc/routes/index.tsx[22m

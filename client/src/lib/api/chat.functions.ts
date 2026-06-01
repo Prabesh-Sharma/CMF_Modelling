@@ -11,7 +11,7 @@ const ChatHotspotSchema = z
     riskScore: z.number(),
     predictedCrashes: z.number().optional(),
     source: z.string().optional(),
-    shapFactors: z
+    riskFactors: z
       .array(
         z.object({
           name: z.string(),
@@ -21,6 +21,10 @@ const ChatHotspotSchema = z
       )
       .optional(),
     recommendedInterventions: z.array(z.string()).optional(),
+    accidentReports: z.record(z.string(), z.number()).optional(),
+    roadAnchorLat: z.number().optional(),
+    roadAnchorLon: z.number().optional(),
+    roadName: z.string().optional(),
   })
   .passthrough()
   .nullable();
@@ -36,6 +40,8 @@ const ChatInterventionSchema = z
     longitude: z.number(),
     timestamp: z.number().int(),
     roadId: z.string().optional(),
+    origin: z.enum(["planner", "llm"]).optional(),
+    rationale: z.string().optional(),
   })
   .passthrough();
 
@@ -57,6 +63,27 @@ export interface ChatResponse {
   combinedCmf?: number | null;
   postCrashes?: number | null;
   sources?: { source?: string | null; score?: number | null }[];
+  recommendations?: ModelRecommendation[];
+  impactModel?: {
+    cmfDefinition: string;
+    baselineCrashes?: number | null;
+    combinedCmf?: number | null;
+    projectedCrashes?: number | null;
+    crashReduction?: number | null;
+  } | null;
+}
+
+export interface ModelRecommendation {
+  interventionId: string;
+  interventionType: string;
+  cmf: number;
+  cost: number;
+  rationale: string;
+  matchedModel?: string | null;
+  baselineCrashes?: number;
+  projectedCrashes?: number;
+  crashReduction?: number;
+  reductionPct?: number;
 }
 
 export const submitChat = createServerFn({ method: "POST" })
@@ -74,4 +101,16 @@ export const submitChat = createServerFn({ method: "POST" })
     }
 
     return (await res.json()) as ChatResponse;
+  });
+
+export const evaluateIntervention = createServerFn({ method: "POST" })
+  .inputValidator(z.object({ name: z.string().min(2) }))
+  .handler(async ({ data }): Promise<ModelRecommendation> => {
+    const res = await fetch(`${API_BASE}/api/evaluate-intervention`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) throw new Error(`CMF evaluation failed: ${res.status}`);
+    return (await res.json()) as ModelRecommendation;
   });

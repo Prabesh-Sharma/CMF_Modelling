@@ -32,6 +32,23 @@ export interface InterventionType {
   icon: LucideIcon;
 }
 
+// CHANGE 3 — intervention generation
+export interface GeneratedIntervention {
+  clusterId?: string;
+  clusterName?: string;
+  crashId?: string;
+  crashCause?: string;
+  latitude?: number;
+  longitude?: number;
+  interventionId?: string;
+  cmf?: number;
+  icon: string;
+  title: string;
+  action: string;
+  reduction: string;
+  evidence: string;
+}
+
 export const INTERVENTION_CATEGORIES: { category: string; items: InterventionType[] }[] = [
   {
     category: "Speed Management",
@@ -296,4 +313,9 @@ export interface AppliedIntervention {
   longitude: number;
   timestamp: number;
   roadId?: string;
+  origin?: "planner" | "llm";
+  rationale?: string;
+  crashId?: string;
+  crashCause?: string;
+  reduction?: string;
 }

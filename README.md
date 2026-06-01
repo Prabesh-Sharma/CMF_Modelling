@@ -1,112 +1,107 @@
-# CMF Modelling (Hackathon)
+# CMF Modelling
 
-Crash Modification Factor (CMF) modelling toolkit with a map-focused client UI. The server trains on a sampled US accidents dataset, generates hotspot explanations, and exposes APIs for hotspot data, interventions, and a CMF-aware chat assistant.
+Road-safety dashboard for Nepali crash records. The server now extracts features from
+the local Nepali crash CSVs, creates crash clusters, generates a KDE heatmap, and
+serves those outputs to the Leaflet client.
 
-## Repo layout
-- `server/`: Python data pipeline (ingest → features → train → SHAP → KDE) + FastAPI backend
-- `client/`: Vite + TanStack Start UI with map-anchored assistant
+## Repo Layout
+- `server/`: Nepali crash feature extraction, clustering, KDE generation, FastAPI, CMF RAG
+- `client/`: TanStack Start + Leaflet UI with crash points, clusters, heatmap, and chatbot
 
-## What trains on what
-- **Training + validation**: `server/data/inputs/us_accidents_sampled.csv` (or STATS19/custom if configured)
-- **Kathmandu Valley**: used only for **inference/explainability** and KDE heatmap generation
+## Data Inputs
+- `server/data/inputs/01_raw_crash_records.csv`
+- `server/data/inputs/02_road_segments_gi_star.csv`
+- `server/data/inputs/03_local_level_summary.csv`
+- `server/data/inputs/05_crash_cause_severity.csv`
+- `server/data/inputs/06_collision_type_severity.csv`
 
-## Server pipeline
-Run all stages with:
-```bash
-python server/run_pipeline.py
+The old US traffic dataset and model-training scaffold are no longer used.
+
+## Crash Pipeline
+Run all stages:
+
+```powershell
+server\venv\Scripts\python.exe server\run_pipeline.py
 ```
 
 Stages:
-1. **Ingest** (`server/pipeline/01_ingest.py`)
-   - Standardizes columns, normalizes severity, parses time, maps weather/light/junction flags.
-   - Output: `server/data/raw_training.parquet`
+1. `server/pipeline/01_ingest.py` normalizes Nepali crash records into `server/data/raw_crashes.parquet`.
+2. `server/pipeline/02_features.py` downloads and caches OSM roads, keeps crashes within 35 m of a detected road, snaps visible points to roads, builds clusters, and writes `server/data/crash_map.json`.
+3. `server/pipeline/05_kde.py` generates `server/data/kde_heatmap.json` and injects Leaflet heat data into `crash_map.json`.
 
-2. **Feature engineering** (`server/pipeline/02_features.py`)
-   - Builds model features (weather, time cyclics, junction/road risk, interactions).
-   - Optional OSM enrichment via OSMnx (disabled for large datasets).
-   - Output: `server/data/features.parquet`
+Key outputs:
+- `server/data/features.parquet`
+- `server/data/crash_clusters.json`
+- `server/data/kde_heatmap.json`
+- `server/data/crash_map.json`
+- `server/data/osm_roads.json.gz`
 
-3. **Training + validation** (`server/pipeline/03_train.py`)
-   - Spatial CV + spatial holdout on the **training dataset**.
-   - Output: `server/models/xgb_model.json`, `server/models/train_report.json`
+The heatmap is emitted as `[lat, lon, intensity]` rows for:
 
-4. **SHAP explainability** (`server/pipeline/04_shap.py`)
-   - Local explanations for Kathmandu hotspots.
-   - Global SHAP computed on a sample of training features.
-   - Output: `server/data/shap_global.json`, `server/data/shap_hotspots.json`
-
-5. **KDE heatmap** (`server/pipeline/05_kde.py`)
-   - Output: `server/data/kde_heatmap.json`
-
-## OSM enrichment (what was used in your run)
-- OSM enrichment for the **training data** was **skipped** because the US dataset is too large.
-- Kathmandu OSM features **were generated** for the hotspot showcase.
-
-To enable OSM enrichment for training, either:
-- use a much smaller regional dataset, or
-- lower `OSM_MAX_POINTS` / tighten `OSM_MAX_DEG_RANGE` in `server/pipeline/02_features.py`.
+```ts
+L.heatLayer(heatData, {
+  radius: 35,
+  blur: 25,
+  maxZoom: 17,
+}).addTo(map);
+```
 
 ## APIs
-- `GET /api/hotspots` → serves `server/data/shap_hotspots.json`
-- `POST /api/interventions` → logs interventions, returns combined CMF + post-crash estimate
-- `POST /api/chat` → CMF RAG + Qwen (Ollama) responses with context
+- `GET /api/health`
+- `GET /api/hotspots` serves `server/data/crash_map.json`
+- `POST /api/chat` uses CMF RAG context and Groq for generated responses
+- `POST /api/evaluate-intervention` maps a planner recommendation to a stable CMF model
+
+## Demo CMF Model
+The board uses a fixed intervention catalog so repeated demo prompts remain consistent.
+CMFs multiply when multiple actions are added to the same road context:
+
+```text
+projected crashes = baseline crashes * CMF_1 * CMF_2 * ...
+```
+
+Examples:
+- pedestrian collisions -> pedestrian bridge, CMF `0.30`
+- pedestrian crossing risk -> raised crosswalk, CMF `0.55`
+- speeding -> speed camera, CMF `0.65`
+- head-on collisions -> median barrier, CMF `0.55`
+- nighttime visibility -> LED lighting, CMF `0.72`
+
+Planner recommendations appear in blue. Structured recommendations returned by the
+assistant appear in red. Both can be removed from the board to compare implications.
 
 ## Setup
 ### Server
-```bash
-python -m venv server/.venv
-source server/.venv/bin/activate
-pip install -r server/requirements.txt
+```powershell
+server\venv\Scripts\python.exe -m pip install -r server\requirements.txt
+server\venv\Scripts\python.exe server\run_pipeline.py
+server\venv\Scripts\python.exe -m uvicorn server.api.main:app --port 8000
 ```
 
-Run the API:
-```bash
-uvicorn server.api.main:app --reload --port 8000
-```
+For chat, add a Groq API key to `server/.env`:
 
-Optional OSM dependencies (if not already installed):
-```bash
-pip install osmnx geopandas shapely
+```dotenv
+GROQ_API_KEY="gsk_your_key_here"
 ```
 
 ### Client
-```bash
+```powershell
 cd client
 npm install
 npm run dev
 ```
 
-### CMF RAG (optional, for /api/chat)
+## CMF RAG
 Add CMF PDFs/text files to `server/RAG/cmf_rag/docs` and build embeddings:
-```bash
-python server/RAG/cmf_rag/cmf_rag.py build \
-  --input-dir server/RAG/cmf_rag/docs \
-  --output server/RAG/cmf_rag/data/cmf_embeddings.parquet
+
+```powershell
+server\venv\Scripts\python.exe server\RAG\cmf_rag\cmf_rag.py
 ```
 
-Ensure Ollama is running and Qwen is available:
-```bash
-ollama pull qwen2.5:7b-instruct-q4_K_M
-```
-
-## Data inputs
-- `server/data/inputs/us_accidents_sampled.csv`
-- `server/data/kathmandu_hotspots.json`
-
-Optional: `server/scratch/download_and_sample.py` downloads a Kaggle dataset if you provide credentials in `server/.env`.
-
-## Outputs
-- `server/data/*.parquet` (features)
-- `server/data/shap_*.json` (explainability)
-- `server/data/kde_heatmap.json`
-- `server/models/*.json` (model + report)
-
-## Environment variables
-- `HOTSPOTS_API_URL` (client) — defaults to `http://localhost:8000`
-- `RAG_EMBEDDINGS_PATH` (server) — optional override for CMF embeddings file
-- `OLLAMA_MODEL` (server) — defaults to `qwen2.5:7b-instruct-q4_K_M`
-
-## Hackathon notes
-- The Kathmandu results are **transfer estimates** from a model trained on US data.
-- Use them as relative risk indicators, not calibrated probabilities.
-- For a more robust demo, add a small local labeled dataset or calibrate on Kathmandu data.
+## Environment Variables
+- `HOTSPOTS_API_URL` (client) defaults to `http://localhost:8000`
+- `RAG_EMBEDDINGS_PATH` (server) optional override for CMF embeddings
+- `GROQ_API_KEY` (server) required for `/api/chat`
+- `GROQ_MODEL` (server) defaults to `llama-3.1-8b-instant`
+- `GROQ_TEMP` (server) defaults to `0.4`
+- `GROQ_MAX_TOKENS` (server) defaults to `320`

@@ -1,0 +1,34 @@
+Failed to fetch from http://localhost:8000/api/hotspots. Falling back to local JSON data. TypeError: fetch failed
+    at node:internal/deps/undici/undici:15422:13
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async accept (P:\CMF_modelling\client\src\lib\api\hotspots.functions.ts:12:21)
+    at async server (P:\CMF_modelling\client\node_modules\@tanstack\start-client-core\src\createServerFn.ts:927:24)
+    at async callNextMiddleware (P:\CMF_modelling\client\node_modules\@tanstack\start-client-core\src\createServerFn.ts:313:24)
+    at async Object.assign.__executeServer (P:\CMF_modelling\client\node_modules\@tanstack\start-client-core\src\createServerFn.ts:206:20)
+    at async client (P:\CMF_modelling\client\node_modules\@tanstack\start-client-core\src\createServerFn.ts:923:21)
+    at async callNextMiddleware (P:\CMF_modelling\client\node_modules\@tanstack\start-client-core\src\createServerFn.ts:313:24)
+    at async Object.assign (P:\CMF_modelling\client\node_modules\@tanstack\start-client-core\src\createServerFn.ts:150:26) {
+  [cause]: AggregateError [ECONNREFUSED]: 
+      at internalConnectMultiple (node:net:1134:18)
+      at afterConnectMultiple (node:net:1715:7) {
+    code: 'ECONNREFUSED',
+    [errors]: [ [Error], [Error] ]
+  }
+}
+Failed to fetch from http://localhost:8000/api/hotspots. TypeError: fetch failed
+    at node:internal/deps/undici/undici:15422:13
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async accept (P:\CMF_modelling\client\src\lib\api\hotspots.functions.ts:12:21)
+    at async server (P:\CMF_modelling\client\node_modules\@tanstack\start-client-core\src\createServerFn.ts:927:24)
+    at async callNextMiddleware (P:\CMF_modelling\client\node_modules\@tanstack\start-client-core\src\createServerFn.ts:313:24)
+    at async Object.assign.__executeServer (P:\CMF_modelling\client\node_modules\@tanstack\start-client-core\src\createServerFn.ts:206:20)
+    at async client (P:\CMF_modelling\client\node_modules\@tanstack\start-client-core\src\createServerFn.ts:923:21)
+    at async callNextMiddleware (P:\CMF_modelling\client\node_modules\@tanstack\start-client-core\src\createServerFn.ts:313:24)
+    at async Object.assign (P:\CMF_modelling\client\node_modules\@tanstack\start-client-core\src\createServerFn.ts:150:26) {
+  [cause]: AggregateError [ECONNREFUSED]: 
+      at internalConnectMultiple (node:net:1134:18)
+      at afterConnectMultiple (node:net:1715:7) {
+    code: 'ECONNREFUSED',
+    [errors]: [ [Error], [Error] ]
+  }
+}

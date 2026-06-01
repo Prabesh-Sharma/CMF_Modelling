@@ -1,6 +1,6 @@
-# CMF RAG Pipeline (Ollama + Qwen)
+# CMF Embedding Builder
 
-Build a small knowledge base of CMF references, retrieve relevant excerpts, and use Qwen (via Ollama) to answer CMF questions and estimate crash changes from interventions.
+Build the CMF reference embeddings consumed by the API chat endpoint.
 
 ## Quickstart
 1. Install requirements
@@ -14,25 +14,14 @@ Build a small knowledge base of CMF references, retrieve relevant excerpts, and 
    - Put PDFs or text files in `docs/`.
    - See `docs/README.md` for recommended sources and format.
 
-3. Build the knowledge base
+3. Build the embeddings
    ```bash
-   python cmf_rag.py build --input-dir docs --output data/cmf_embeddings.parquet
-   ```
-
-4. Ask a question
-   ```bash
-   python cmf_rag.py ask \
-     --query "Add a roundabout at a 4-leg urban intersection" \
-     --facility "urban 4-leg intersection" \
-     --crash-type "all crashes" \
-     --severity "injury" \
-     --baseline-crashes 50
+   python cmf_rag.py
    ```
 
 ## Notes
-- Ensure Ollama is running and the model is available:
-  ```bash
-  ollama pull qwen2.5:7b-instruct-q4_K_M
-  ```
-- Training data is not required; this is a retrieval-augmented lookup pipeline.
+- The script recursively embeds `.pdf`, `.txt`, and `.md` files from `docs/`.
+- Embeddings are written to `data/cmf_embeddings.parquet`.
+- Query answering is handled by the API chat endpoint.
+- Training data is not required.
 - Results depend on the quality and relevance of your CMF documents.

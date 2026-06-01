@@ -130,3 +130,19 @@
   border-radius: 50%;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
+
+/* CHANGE 2 — hover tooltip */
+.crash-tooltip {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+
+.crash-tooltip .leaflet-tooltip-content {
+  margin: 0;
+}
+
+.crash-tooltip::before {
+  display: none !important;
+}
