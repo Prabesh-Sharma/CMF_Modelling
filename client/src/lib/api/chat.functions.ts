@@ -40,6 +40,19 @@ const ChatInterventionSchema = z
     longitude: z.number(),
     timestamp: z.number().int(),
     roadId: z.string().optional(),
+    roadContext: z
+      .object({
+        roadClass: z.string().optional(),
+        corridor: z.string().optional(),
+        roadName: z.string().optional(),
+        hotspotName: z.string().optional(),
+        riskLevel: z.string().optional(),
+        dominantCauses: z.array(z.string()).optional(),
+        nearbyCrashCause: z.string().optional(),
+        nearbyCollisionType: z.string().optional(),
+        nearbyVehicleType: z.string().optional(),
+      })
+      .optional(),
     origin: z.enum(["planner", "llm"]).optional(),
     rationale: z.string().optional(),
   })
@@ -50,6 +63,7 @@ const ChatContextSchema = z
     hotspot: ChatHotspotSchema,
     interventions: z.array(ChatInterventionSchema),
     selectedIntervention: ChatInterventionSchema.nullable(),
+    nearbyInterventions: z.array(ChatInterventionSchema).optional(),
   })
   .passthrough();
 

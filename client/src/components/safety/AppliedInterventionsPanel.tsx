@@ -1,7 +1,11 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Trash2, MapPin } from "lucide-react";
-import type { AppliedIntervention, GeneratedIntervention } from "@/lib/interventions";
+import {
+  getInterventionIcon,
+  type AppliedIntervention,
+  type GeneratedIntervention,
+} from "@/lib/interventions";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 
@@ -54,7 +58,8 @@ export function AppliedInterventionsPanel({
                 }}
               >
                 <div style={{ fontWeight: "bold", marginBottom: "3px" }}>
-                  {intervention.icon} {intervention.title}
+                  <GeneratedInterventionIcon interventionId={intervention.interventionId} />{" "}
+                  {intervention.title}
                 </div>
                 {intervention.clusterName ? (
                   <div style={{ color: "#ff2d55", fontSize: "10px", marginBottom: "4px" }}>
@@ -127,4 +132,9 @@ export function AppliedInterventionsPanel({
       </CardContent>
     </Card>
   );
+}
+
+function GeneratedInterventionIcon({ interventionId }: { interventionId?: string }) {
+  const Icon = getInterventionIcon(interventionId ?? "");
+  return <Icon className="inline h-3.5 w-3.5 align-text-bottom" aria-hidden="true" />;
 }

@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { ChevronDown, ChevronRight, GripVertical } from "lucide-react";
 import { INTERVENTION_CATEGORIES, type InterventionType } from "@/lib/interventions";
 import { cn } from "@/lib/utils";
@@ -44,7 +43,7 @@ export function InterventionToolbox({ onDragStart, onDragEnd, onAddCustom }: Pro
               }
             }}
           >
-            {evaluating ? "..." : "Test CMF"}
+            {evaluating ? "..." : "Test Fit"}
           </button>
         </div>
       </div>
@@ -113,11 +112,7 @@ function InterventionCard({
         </div>
         <div className="min-w-0 flex-1">
           <div className="truncate text-sm font-medium">{intervention.name}</div>
-          <div className="mt-0.5 flex items-center gap-2 text-[11px] text-muted-foreground">
-            <Badge variant="outline" className="h-4 px-1 py-0 text-[10px]">
-              CMF {intervention.cmf.toFixed(2)}
-            </Badge>
-          </div>
+          <div className="mt-0.5 text-[11px] text-muted-foreground">{intervention.category}</div>
         </div>
       </CardContent>
     </Card>

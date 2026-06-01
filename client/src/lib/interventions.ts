@@ -38,6 +38,9 @@ export interface GeneratedIntervention {
   clusterName?: string;
   crashId?: string;
   crashCause?: string;
+  roadClass?: string;
+  corridor?: string;
+  roadName?: string;
   latitude?: number;
   longitude?: number;
   interventionId?: string;
@@ -47,6 +50,18 @@ export interface GeneratedIntervention {
   action: string;
   reduction: string;
   evidence: string;
+}
+
+export interface InterventionRoadContext {
+  roadClass?: string;
+  corridor?: string;
+  roadName?: string;
+  hotspotName?: string;
+  riskLevel?: string;
+  dominantCauses?: string[];
+  nearbyCrashCause?: string;
+  nearbyCollisionType?: string;
+  nearbyVehicleType?: string;
 }
 
 export const INTERVENTION_CATEGORIES: { category: string; items: InterventionType[] }[] = [
@@ -318,4 +333,5 @@ export interface AppliedIntervention {
   crashId?: string;
   crashCause?: string;
   reduction?: string;
+  roadContext?: InterventionRoadContext;
 }

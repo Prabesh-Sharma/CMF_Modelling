@@ -55,6 +55,7 @@ interface MapViewProps {
   onMoveIntervention: (id: string, lat: number, lng: number) => void;
   selectedInterventionId: string | null;
   onSelectIntervention: (id: string) => void;
+  isSatellite: boolean;
 }
 
 function HeatmapLayer({ data }: { data: Array<[number, number, number]> }) {
@@ -111,6 +112,7 @@ export function MapView(props: MapViewProps) {
     onMoveIntervention,
     selectedInterventionId,
     onSelectIntervention,
+    isSatellite,
   } = props;
 
   const center: [number, number] = [27.7172, 85.324];
@@ -151,8 +153,17 @@ export function MapView(props: MapViewProps) {
         }}
       >
         <TileLayer
-          attribution="&copy; OpenStreetMap contributors"
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          key={isSatellite ? "satellite" : "street"}
+          attribution={
+            isSatellite
+              ? "Tiles &copy; Esri, Maxar, Earthstar Geographics, and the GIS User Community"
+              : "&copy; OpenStreetMap contributors"
+          }
+          url={
+            isSatellite
+              ? "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+              : "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          }
         />
         <DropHandler onDrop={onDropIntervention} />
         <HeatmapLayer data={heatmap} />

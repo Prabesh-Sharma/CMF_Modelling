@@ -10,6 +10,7 @@ import {
   Activity,
   Moon,
   Sun,
+  Satellite,
   Loader2,
   AlertCircle,
 } from "lucide-react";
@@ -18,6 +19,7 @@ import type { CrashPoint } from "@/lib/hotspot-schema";
 import type {
   AppliedIntervention,
   GeneratedIntervention,
+  InterventionRoadContext,
   InterventionType,
 } from "@/lib/interventions";
 import { InterventionToolbox } from "@/components/safety/InterventionToolbox";
@@ -28,8 +30,18 @@ import { useHotspots, hotspotsQueryOptions } from "@/hooks/use-hotspots";
 import { MapAssistant } from "@/components/safety/MapAssistant";
 import type { ModelRecommendation } from "@/lib/api/chat.functions";
 
+const Landing = lazy(() =>
+  import("@/components/Landing").then((m) => ({ default: m.Landing })),
+);
+
 const MapView = lazy(() =>
   import("@/components/safety/MapView").then((m) => ({ default: m.MapView })),
+);
+
+const landingFallback = (
+  <div className="flex h-screen w-full items-center justify-center bg-[#030509] text-sm text-slate-400">
+    Loading...
+  </div>
 );
 
 const mapFallback = (
@@ -41,13 +53,13 @@ const mapFallback = (
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "SafeRoute â€” Road Safety Decision Support Platform" },
+      { title: "CMF modelling â€” Road Safety Decision Support Platform" },
       {
         name: "description",
         content:
           "Geospatial decision-support for transportation planners: predict accident hotspots, explain risk drivers, and simulate safety interventions on an interactive map.",
       },
-      { property: "og:title", content: "SafeRoute â€” Road Safety Decision Support" },
+      { property: "og:title", content: "CMF modelling â€” Road Safety Decision Support" },
       {
         property: "og:description",
         content:
@@ -100,6 +112,38 @@ function pickRoadCrash(candidates: CrashPoint[], clusterId: string | undefined, 
   if (!candidates.length) return null;
   const seed = [...(clusterId ?? "cluster")].reduce((sum, char) => sum + char.charCodeAt(0), 0);
   return candidates[(seed + index * 17) % candidates.length];
+}
+
+function nearestCrash(lat: number, lng: number, crashes: CrashPoint[]) {
+  let best: { crash: CrashPoint; d: number } | null = null;
+  for (const crash of crashes) {
+    const d = distSq([lat, lng], [crash.lat, crash.lon]);
+    if (!best || d < best.d) best = { crash, d };
+  }
+  return best?.crash ?? null;
+}
+
+function roadContextForLocation(
+  lat: number,
+  lng: number,
+  roadId: string | undefined,
+  hotspots: Hotspot[],
+  crashes: CrashPoint[],
+): InterventionRoadContext | undefined {
+  const hotspot = hotspots.find((item) => item.id === roadId);
+  const crash = nearestCrash(lat, lng, crashes);
+  if (!hotspot && !crash) return undefined;
+  return {
+    roadClass: crash?.roadClass,
+    corridor: crash?.corridor,
+    roadName: crash?.roadName ?? hotspot?.roadName,
+    hotspotName: hotspot?.name,
+    riskLevel: hotspot?.riskLevel ?? crash?.severityLevel,
+    dominantCauses: hotspot?.riskFactors.map((factor) => factor.name),
+    nearbyCrashCause: crash?.cause,
+    nearbyCollisionType: crash?.collisionType,
+    nearbyVehicleType: crash?.vehicleType,
+  };
 }
 
 // CHANGE 3 - intervention generation
@@ -183,10 +227,10 @@ function generateInterventions(clusterData: {
       interventionId: "lane-narrowing",
       cmf: 0.8,
       icon: "AUD",
-      title: "Bi-Annual Road Safety Audit",
-      action: "Run fixed engineering audit and lane discipline review every 6 months",
+      title: "Lane Discipline and Traffic Calming",
+      action: "Apply lane narrowing, edge guidance, and a recurring corridor safety review",
       reduction: "Ongoing",
-      evidence: "Required baseline intervention for all mapped hotspot clusters",
+      evidence: "Baseline corridor treatment for speed moderation and disciplined lane use",
     },
   ];
 
@@ -242,6 +286,8 @@ function Dashboard() {
   const [pending, setPending] = useState<InterventionType | null>(null);
   const [selectedInterventionId, setSelectedInterventionId] = useState<string | null>(null);
   const [dark, setDark] = useState(false);
+  const [satellite, setSatellite] = useState(false);
+  const [showLanding, setShowLanding] = useState(true);
 
   const selectedHotspot = useMemo(
     () => hotspots.find((h) => h.id === selectedHotspotId) ?? null,
@@ -276,6 +322,9 @@ function Dashboard() {
           ...intervention,
           crashId: crash?.id,
           crashCause: crash?.cause,
+          roadClass: crash?.roadClass,
+          corridor: crash?.corridor,
+          roadName: crash?.roadName,
           latitude: crash?.lat ?? intervention.latitude,
           longitude: crash?.lon ?? intervention.longitude,
         };
@@ -300,6 +349,13 @@ function Dashboard() {
         crashId: item.crashId,
         crashCause: item.crashCause,
         reduction: item.reduction,
+        roadContext: {
+          roadClass: item.roadClass,
+          corridor: item.corridor,
+          roadName: item.roadName,
+          hotspotName: item.clusterName,
+          nearbyCrashCause: item.crashCause,
+        },
       })),
     [generatedInterventions],
   );
@@ -349,6 +405,13 @@ function Dashboard() {
   const handleDrop = (lat: number, lng: number) => {
     if (!pending) return;
     const roadId = nearestRoadId(lat, lng, mapSegments);
+    const roadContext = roadContextForLocation(
+      lat,
+      lng,
+      roadId,
+      hotspots,
+      crashMap?.crashes ?? [],
+    );
     const iv: AppliedIntervention = {
       id: `iv-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       interventionType: pending.name,
@@ -359,6 +422,7 @@ function Dashboard() {
       longitude: lng,
       timestamp: Date.now(),
       roadId,
+      roadContext,
       origin: "planner",
     };
     console.log({
@@ -393,6 +457,13 @@ function Dashboard() {
       longitude,
       timestamp: Date.now(),
       roadId: nearestRoadId(latitude, longitude, mapSegments),
+      roadContext: roadContextForLocation(
+        latitude,
+        longitude,
+        nearestRoadId(latitude, longitude, mapSegments),
+        hotspots,
+        crashMap?.crashes ?? [],
+      ),
       origin,
     };
     setInterventions((prev) => [...prev, iv]);
@@ -408,6 +479,13 @@ function Dashboard() {
               latitude: lat,
               longitude: lng,
               roadId: nearestRoadId(lat, lng, mapSegments),
+              roadContext: roadContextForLocation(
+                lat,
+                lng,
+                nearestRoadId(lat, lng, mapSegments),
+                hotspots,
+                crashMap?.crashes ?? [],
+              ),
             }
           : iv,
       );
@@ -424,6 +502,16 @@ function Dashboard() {
   };
 
   // â”€â”€ Loading / error states â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  if (showLanding) {
+    return (
+      <ClientOnly fallback={landingFallback}>
+        <Suspense fallback={landingFallback}>
+          <Landing onStart={() => setShowLanding(false)} />
+        </Suspense>
+      </ClientOnly>
+    );
+  }
+
   if (isLoading) {
     return (
       <div className="flex h-screen w-full items-center justify-center gap-3 text-sm text-muted-foreground">
@@ -448,30 +536,49 @@ function Dashboard() {
   return (
     <div className="flex h-screen w-full flex-col bg-background text-foreground">
       {/* Top bar */}
-      <header className="flex h-12 shrink-0 items-center justify-between border-b bg-sidebar px-4">
-        <div className="flex items-center gap-2">
-          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-primary text-primary-foreground">
-            <Shield className="h-4 w-4" />
+      <header className="mx-3 mt-3 flex h-14 shrink-0 items-center justify-between rounded-2xl border border-sidebar-border/80 bg-sidebar/85 px-4 shadow-[0_16px_45px_-32px_rgba(15,23,42,0.65)] backdrop-blur supports-[backdrop-filter]:bg-sidebar/75">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-blue-700 text-white shadow-lg shadow-sky-500/20">
+            <Shield className="h-4.5 w-4.5" />
           </div>
           <div className="leading-tight">
-            <div className="text-sm font-semibold">SafeRoute</div>
+            <div className="text-[15px] font-semibold tracking-tight text-sidebar-foreground">
+              CMF modelling
+            </div>
             <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
               Road Safety Decision Support
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-3 text-xs text-muted-foreground">
-          <span className="hidden items-center gap-1 md:flex">
-            <MapIcon className="h-3.5 w-3.5" /> {hotspots.length} clusters
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <span className="hidden items-center gap-1.5 rounded-full border border-sidebar-border/80 bg-background/70 px-2.5 py-1 shadow-sm md:flex">
+            <MapIcon className="h-3.5 w-3.5 text-sky-600 dark:text-sky-300" />{" "}
+            {hotspots.length} clusters
           </span>
-          <span className="hidden items-center gap-1 md:flex">
-            <Activity className="h-3.5 w-3.5" />{" "}
+          <span className="hidden items-center gap-1.5 rounded-full border border-sidebar-border/80 bg-background/70 px-2.5 py-1 shadow-sm md:flex">
+            <Activity className="h-3.5 w-3.5 text-amber-600 dark:text-amber-300" />{" "}
             <span data-count="crashes">{filteredCrashCount} crashes</span>
           </span>
-          <span className="hidden items-center gap-1 md:flex">
-            <Activity className="h-3.5 w-3.5" /> {mapInterventions.length} interventions
+          <span className="hidden items-center gap-1.5 rounded-full border border-sidebar-border/80 bg-background/70 px-2.5 py-1 shadow-sm md:flex">
+            <Activity className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-300" />{" "}
+            {mapInterventions.length} interventions
           </span>
-          <Button size="icon" variant="ghost" className="h-8 w-8" onClick={toggleDark}>
+          <Button
+            size="sm"
+            variant={satellite ? "secondary" : "ghost"}
+            className="h-9 gap-1.5 rounded-full border border-sidebar-border/70 px-3 text-xs shadow-sm"
+            onClick={() => setSatellite((value) => !value)}
+            aria-pressed={satellite}
+          >
+            <Satellite className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Satellite</span>
+          </Button>
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-9 w-9 rounded-full border border-sidebar-border/70 shadow-sm"
+            onClick={toggleDark}
+          >
             {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
           </Button>
         </div>
@@ -520,6 +627,7 @@ function Dashboard() {
                 onMoveIntervention={handleMoveIntervention}
                 selectedInterventionId={selectedInterventionId}
                 onSelectIntervention={setSelectedInterventionId}
+                isSatellite={satellite}
               />
             </Suspense>
           </ClientOnly>

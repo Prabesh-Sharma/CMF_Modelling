@@ -41,30 +41,29 @@
 }
 
 :root {
-  --radius: 0.5rem;
-  /* Vercel light: pure white bg, near-black foreground, geist grays */
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+  --radius: 0.75rem;
+  --background: oklch(0.972 0.012 247);
+  --foreground: oklch(0.255 0.036 255);
+  --card: oklch(0.992 0.006 247);
+  --card-foreground: oklch(0.255 0.036 255);
+  --popover: oklch(0.995 0.006 247);
+  --popover-foreground: oklch(0.255 0.036 255);
+  --primary: oklch(0.56 0.18 252);
+  --primary-foreground: oklch(0.985 0.006 247);
+  --secondary: oklch(0.93 0.026 247);
+  --secondary-foreground: oklch(0.31 0.045 255);
+  --muted: oklch(0.94 0.018 247);
+  --muted-foreground: oklch(0.49 0.04 255);
+  --accent: oklch(0.91 0.04 246);
+  --accent-foreground: oklch(0.31 0.055 255);
   --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-border: oklch(0.922 0 0);
+  --destructive-foreground: oklch(0.985 0.006 247);
+  --border: oklch(0.87 0.018 247);
+  --input: oklch(0.88 0.018 247);
+  --ring: oklch(0.62 0.14 252);
+  --sidebar: oklch(0.963 0.014 247);
+  --sidebar-foreground: oklch(0.285 0.038 255);
+  --sidebar-border: oklch(0.86 0.02 247);
 
   --risk-critical: oklch(0.55 0.24 25);
   --risk-high: oklch(0.7 0.19 50);
@@ -75,29 +74,28 @@
 }
 
 .dark {
-  /* Vercel dark: pure black bg, near-white foreground, geist grays */
-  --background: oklch(0 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.145 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.145 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.985 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.205 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.205 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.205 0 0);
-  --accent-foreground: oklch(0.985 0 0);
+  --background: oklch(0.17 0.032 255);
+  --foreground: oklch(0.91 0.018 247);
+  --card: oklch(0.205 0.032 255);
+  --card-foreground: oklch(0.91 0.018 247);
+  --popover: oklch(0.205 0.032 255);
+  --popover-foreground: oklch(0.91 0.018 247);
+  --primary: oklch(0.69 0.16 252);
+  --primary-foreground: oklch(0.16 0.034 255);
+  --secondary: oklch(0.255 0.032 255);
+  --secondary-foreground: oklch(0.91 0.018 247);
+  --muted: oklch(0.255 0.032 255);
+  --muted-foreground: oklch(0.72 0.026 247);
+  --accent: oklch(0.31 0.05 255);
+  --accent-foreground: oklch(0.94 0.018 247);
   --destructive: oklch(0.704 0.191 22.216);
-  --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(0.269 0 0);
-  --input: oklch(0.269 0 0);
-  --ring: oklch(0.556 0 0);
-  --sidebar: oklch(0.09 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(0.269 0 0);
+  --destructive-foreground: oklch(0.985 0.006 247);
+  --border: oklch(0.32 0.032 255);
+  --input: oklch(0.32 0.032 255);
+  --ring: oklch(0.68 0.15 252);
+  --sidebar: oklch(0.19 0.033 255);
+  --sidebar-foreground: oklch(0.91 0.018 247);
+  --sidebar-border: oklch(0.32 0.032 255);
 }
 
 @layer base {
@@ -105,8 +103,13 @@
     border-color: var(--color-border);
   }
   body {
-    background-color: var(--color-background);
+    background:
+      radial-gradient(circle at top left, oklch(0.92 0.055 245 / 0.5), transparent 36rem),
+      radial-gradient(circle at bottom right, oklch(0.91 0.04 225 / 0.34), transparent 32rem),
+      var(--color-background);
     color: var(--color-foreground);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
   }
   html,
   body,

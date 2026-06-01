@@ -41,6 +41,7 @@ _RAG_EMBEDS = None
 _RAG_CHUNKS = None
 
 CMF_CATALOG = {
+    "speed-hump": ("Speed Hump", 0.60, 2500, "Reduces operating speed where road geometry and access pattern are suitable."),
     "pedestrian-bridge": ("Pedestrian Bridge", 0.30, 320000, "Separates pedestrians from traffic where pedestrian collisions dominate."),
     "raised-crosswalk": ("Raised Crosswalk", 0.55, 9000, "Slows vehicles and improves pedestrian priority at crossings."),
     "speed-camera": ("Speed Camera", 0.65, 35000, "Targets repeated speeding and unsafe driving behavior."),
@@ -52,12 +53,288 @@ CMF_CATALOG = {
     "reflective-signage": ("Reflective Signage", 0.88, 2000, "Provides a low-cost visibility improvement."),
 }
 
+SITE_CONSTRAINT_RULES = {
+    "speed-hump-on-narrow-road": {
+        "treatment": "Speed Hump",
+        "baselineCmf": 0.60,
+        "constrainedCmf": 0.75,
+        "constraint": "narrow road",
+        "reason": (
+            "A narrow carriageway can reduce the treatment's suitability because vehicles may "
+            "track around the hump edge, create side-swipe conflicts, or impede emergency and "
+            "service access unless the layout is engineered for the available width."
+        ),
+    },
+}
+
 CMF_DEFINITION = (
     "CMF means Crash Modification Factor / Crash Multiplication Factor. "
     "It is a multiplier on expected crashes: projected crashes = baseline crashes * CMF. "
     "CMF < 1 reduces crashes, CMF = 1 means no change, CMF > 1 increases crashes. "
     "Lower CMF is better only when the intervention matches the crash mechanism."
 )
+
+
+def _site_constraint_reply(message: str) -> str | None:
+    text = message.lower()
+    asks_speed_hump = any(token in text for token in ["speed hump", "speed breaker", "road hump"])
+    mentions_narrow = any(token in text for token in ["narrow road", "narrow street", "narrow lane", "limited width"])
+    if not (asks_speed_hump and mentions_narrow):
+        return None
+    rule = SITE_CONSTRAINT_RULES["speed-hump-on-narrow-road"]
+    baseline_cmf = rule["baselineCmf"]
+    constrained_cmf = rule["constrainedCmf"]
+    return "\n".join(
+        [
+            "- Assessment: a speed hump can still be considered on a narrow road, but the standard CMF should not be applied unchanged.",
+            f"- CMF adjustment: use {constrained_cmf:.2f} as the constrained-site screening CMF instead of the standard {baseline_cmf:.2f}. The CMF rises by {constrained_cmf - baseline_cmf:.2f}, so the estimated crash reduction falls from {round((1 - baseline_cmf) * 100)}% to {round((1 - constrained_cmf) * 100)}%.",
+            f"- Engineering reason: {rule['reason']}",
+            "- Design checks: confirm clear carriageway width, drainage, pedestrian clearance, emergency access, visibility, and whether a speed table or gateway treatment fits the corridor better.",
+            "- Decision: retain the speed hump only after a site-width check; otherwise test an alternative speed-management treatment.",
+        ]
+    )
+
+
+def _clean_text(value: object) -> str:
+    return str(value or "").strip()
+
+
+def _intervention_for_judgement(ctx: "ChatContext") -> Optional["ChatIntervention"]:
+    if ctx.selectedIntervention:
+        return ctx.selectedIntervention
+    if ctx.interventions:
+        return ctx.interventions[-1]
+    return None
+
+
+def _nearby_interventions(ctx: "ChatContext") -> list["ChatIntervention"]:
+    explicit = getattr(ctx, "nearbyInterventions", None)
+    if isinstance(explicit, list):
+        return explicit
+    selected = _intervention_for_judgement(ctx)
+    if not selected:
+        return []
+    result = []
+    for item in ctx.interventions:
+        if item.id == selected.id:
+            continue
+        if item.roadId and selected.roadId and item.roadId == selected.roadId:
+            result.append(item)
+    return result[:8]
+
+
+def _artifact_implication_reply(message: str, ctx: "ChatContext") -> str | None:
+    text = message.lower()
+    if not any(token in text for token in ["implication", "impact of adding", "if i add", "adding this artifact", "add this artifact"]):
+        return None
+
+    selected = _intervention_for_judgement(ctx)
+    if not selected:
+        return (
+            "- Select an artifact first, then ask for its implication.\n"
+            "- The implication check compares the selected artifact with road type, crash cause, and nearby suggested artifacts."
+        )
+
+    context = getattr(selected, "roadContext", None) or {}
+    if not isinstance(context, dict):
+        context = {}
+    nearby = _nearby_interventions(ctx)
+    nearby_ids = {_clean_text(item.interventionId).lower() for item in nearby}
+    nearby_names = [_clean_text(item.interventionType) for item in nearby if _clean_text(item.interventionType)]
+
+    selected_id = _clean_text(selected.interventionId).lower()
+    selected_name = _clean_text(selected.interventionType)
+    road_class = _clean_text(context.get("roadClass") or "unknown road class")
+    corridor = _clean_text(context.get("corridor") or "unknown corridor")
+    road_name = _clean_text(context.get("roadName") or context.get("hotspotName") or "the selected road")
+    nearby_cause = _clean_text(context.get("nearbyCrashCause"))
+    collision = _clean_text(context.get("nearbyCollisionType"))
+    dominant_causes = context.get("dominantCauses") if isinstance(context.get("dominantCauses"), list) else []
+    cause_text = ", ".join(_clean_text(item) for item in dominant_causes if _clean_text(item))
+    road_text = f"{road_class} {corridor}".lower()
+    risk_text = " ".join([nearby_cause, collision, cause_text]).lower()
+
+    high_order = any(token in road_text for token in ["national", "highway", "primary", "trunk", "arterial"])
+    needs_lighting = any(
+        token in nearby_ids
+        for token in ["led-lighting", "illuminated-crosswalk", "reflective-signage"]
+    ) or any(token in risk_text for token in ["night", "visibility", "light"])
+    turning_problem = any(token in risk_text for token in ["turn", "turning", "side", "junction", "intersection", "bad turning"])
+    speed_problem = any(token in risk_text for token in ["speed", "careless", "motorcycle", "rear"])
+
+    nearby_text = ", ".join(nearby_names[:4]) if nearby_names else "none attached near this artifact"
+
+    if selected_id in {"speed-hump", "speed-table", "raised-intersection"}:
+        if high_order or turning_problem or needs_lighting:
+            priority = []
+            if needs_lighting:
+                priority.append("visibility/lighting treatment")
+            if turning_problem:
+                priority.append("turning or intersection-control treatment")
+            if high_order:
+                priority.append("corridor-compatible speed management such as enforcement or gateway treatment")
+            return "\n".join(
+                [
+                    f"- Implication: adding {selected_name} at {road_name} is not the first-choice treatment from the current context.",
+                    f"- Road and crash context: {road_class} / {corridor}; nearby cause: {nearby_cause or 'not specified'}; nearby suggestions: {nearby_text}.",
+                    "- Conflict check: the selected artifact targets operating speed, but this location is showing a higher-order road, turning conflict, or visibility need. Those mechanisms are not solved by a speed hump alone.",
+                    "- CMF interpretation: the speed-hump CMF does not automatically get better because lighting is needed. Lighting is a separate treatment; it should be evaluated separately or as part of a package.",
+                    f"- Recommended sequence: prioritize {', '.join(dict.fromkeys(priority))}; keep the speed hump only if a site survey confirms low-speed operation, adequate width, drainage, and emergency access.",
+                    "- Judge-facing line: the system is deterministic here: it checks selected artifact, nearby suggested artifacts, road type, and crash mechanism before applying CMF math.",
+                ]
+            )
+        if speed_problem:
+            return "\n".join(
+                [
+                    f"- Implication: {selected_name} is directionally aligned because the nearby crash pattern includes speed or speed-like exposure.",
+                    f"- Road and crash context: {road_class} / {corridor}; nearby cause: {nearby_cause or 'not specified'}; nearby suggestions: {nearby_text}.",
+                    "- CMF interpretation: use the speed-hump CMF only for the crash mechanism it targets; do not apply it to visibility or turning crashes.",
+                    "- Next check: confirm road width, approach visibility, drainage, emergency access, and whether nearby lighting or signs should be installed first.",
+                ]
+            )
+
+    if selected_id in {"led-lighting", "illuminated-crosswalk", "reflective-signage"}:
+        return "\n".join(
+            [
+                f"- Implication: {selected_name} directly addresses a visibility/readability need and is compatible with most road classes.",
+                f"- Road and crash context: {road_class} / {corridor}; nearby cause: {nearby_cause or 'not specified'}; nearby suggestions: {nearby_text}.",
+                "- CMF interpretation: lighting has its own CMF; it does not change the CMF of a speed hump, but it can be combined as a separate treatment package.",
+                "- Recommended sequence: install visibility treatment before relying on vertical traffic calming if the road context indicates poor lighting.",
+            ]
+        )
+
+    road_reply = _road_type_judgement_reply("judge placement road type", ctx)
+    if road_reply:
+        return road_reply.replace("- Verdict:", "- Implication:")
+    return None
+
+
+def _road_type_judgement_reply(message: str, ctx: "ChatContext") -> str | None:
+    text = message.lower()
+    if not any(
+        token in text
+        for token in [
+            "judge",
+            "suitable",
+            "appropriate",
+            "good fit",
+            "bad fit",
+            "road type",
+            "where i dropped",
+            "where it is dropped",
+            "dropped artifact",
+            "placed",
+            "placement",
+        ]
+    ):
+        return None
+
+    intervention = _intervention_for_judgement(ctx)
+    if not intervention:
+        return (
+            "- Select or drop an intervention first, then ask for placement suitability.\n"
+            "- The placement check uses road class, corridor, nearby crash cause, and hotspot context."
+        )
+
+    context = getattr(intervention, "roadContext", None) or {}
+    if not isinstance(context, dict):
+        context = {}
+
+    intervention_id = _clean_text(intervention.interventionId).lower()
+    intervention_name = _clean_text(intervention.interventionType)
+    road_class = _clean_text(context.get("roadClass") or "unknown road class")
+    corridor = _clean_text(context.get("corridor") or "unknown corridor")
+    road_name = _clean_text(context.get("roadName") or context.get("hotspotName") or "the selected road")
+    nearby_cause = _clean_text(context.get("nearbyCrashCause"))
+    collision = _clean_text(context.get("nearbyCollisionType"))
+    vehicle = _clean_text(context.get("nearbyVehicleType"))
+    dominant_causes = context.get("dominantCauses") if isinstance(context.get("dominantCauses"), list) else []
+    cause_text = ", ".join(_clean_text(item) for item in dominant_causes if _clean_text(item))
+    road_text = f"{road_class} / {corridor}".lower()
+    risk_text = " ".join([nearby_cause, collision, vehicle, cause_text]).lower()
+
+    high_order = any(token in road_text for token in ["primary", "trunk", "highway", "arterial"])
+    collector = any(token in road_text for token in ["secondary", "tertiary", "collector"])
+    local = any(token in road_text for token in ["residential", "local", "service", "unclassified", "narrow"])
+    pedestrian = any(token in risk_text for token in ["pedestrian", "crossing", "foot"])
+    speed = any(token in risk_text for token in ["speed", "careless", "motorcycle", "rear"])
+    turning = any(token in risk_text for token in ["turn", "side", "junction", "intersection"])
+
+    verdict = "Needs site review"
+    reason = "The placement has limited road-type evidence, so it should be checked against the observed crash pattern before acceptance."
+    next_step = "Confirm road class and crash mechanism before keeping this artifact at the dropped location."
+
+    if intervention_id in {"speed-hump", "speed-table", "raised-intersection"}:
+        if high_order:
+            verdict = "Use caution"
+            reason = "Vertical traffic calming can conflict with higher-order roads that carry through traffic, buses, emergency vehicles, or heavy vehicles."
+            next_step = "Prefer a speed table, gateway treatment, camera, or signal control unless a site survey confirms low operating speed and adequate width."
+        elif local or collector:
+            verdict = "Generally suitable"
+            reason = "Speed-management artifacts fit lower-speed local, residential, tertiary, or collector contexts when the crash pattern involves speed, pedestrians, or motorcycle exposure."
+            next_step = "Check carriageway width, drainage, visibility, and emergency access before final placement."
+    elif intervention_id in {"pedestrian-bridge", "raised-crosswalk", "pedestrian-refuge", "hawk-signal", "hv-crosswalk"}:
+        if pedestrian or high_order:
+            verdict = "Generally suitable"
+            reason = "Pedestrian treatments fit locations with pedestrian crash exposure or high-order corridors where crossing conflicts need separation or priority control."
+            next_step = "Confirm pedestrian desire lines, approach visibility, crossing demand, and whether at-grade or grade-separated treatment is more appropriate."
+        else:
+            verdict = "Needs stronger pedestrian evidence"
+            reason = "The road context does not clearly show a pedestrian crash pattern, so the artifact may not target the dominant risk."
+            next_step = "Check nearby crash causes and pedestrian volume before keeping this placement."
+    elif intervention_id in {"traffic-signal", "protected-left", "signal-coordination", "roundabout"}:
+        if turning or high_order or collector:
+            verdict = "Generally suitable"
+            reason = "Intersection-control artifacts fit turning, side-impact, and higher-volume junction contexts."
+            next_step = "Confirm intersection geometry, approach volumes, queue risk, and turning-conflict records."
+        else:
+            verdict = "Needs junction evidence"
+            reason = "The dropped road context does not clearly indicate an intersection or turning-conflict problem."
+            next_step = "Move it closer to a junction or choose a corridor treatment if the issue is midblock risk."
+    elif intervention_id in {"speed-camera", "avg-speed-camera", "red-light-camera", "dynamic-speed-sign"}:
+        if speed or high_order or collector:
+            verdict = "Generally suitable"
+            reason = "Enforcement and speed-feedback artifacts fit corridors with speed, careless-driving, motorcycle, or through-traffic exposure."
+            next_step = "Confirm sight distance, enforcement legality, power/communications access, and warning-sign placement."
+        else:
+            verdict = "Needs speed evidence"
+            reason = "The road context does not clearly show speed-related risk."
+            next_step = "Check observed speed or crash-cause records before keeping this location."
+    elif intervention_id in {"led-lighting", "illuminated-crosswalk", "reflective-signage"}:
+        verdict = "Generally suitable"
+        reason = "Visibility artifacts are broadly compatible because they support recognition, guidance, and night-time conspicuity without changing road geometry."
+        next_step = "Confirm night-crash share, lighting gaps, sign visibility, and maintenance access."
+    elif intervention_id in {"median-barrier", "road-diet", "lane-narrowing", "shoulder-widening"}:
+        if high_order or collector:
+            verdict = "Needs cross-section check"
+            reason = "Road-design artifacts depend heavily on lane width, shoulder availability, turning access, and traffic composition on this road type."
+            next_step = "Check cross-section, roadside hazards, access points, and whether the crash pattern is head-on, lane violation, or run-off-road."
+        else:
+            verdict = "Potentially suitable"
+            reason = "The artifact may fit a lower-order corridor if the dominant risk is lane discipline, speed moderation, or roadside exposure."
+            next_step = "Verify available width and avoid creating pedestrian or cyclist pinch points."
+
+    evidence = []
+    if road_class != "unknown road class":
+        evidence.append(f"road class: {road_class}")
+    if corridor != "unknown corridor":
+        evidence.append(f"corridor: {corridor}")
+    if nearby_cause:
+        evidence.append(f"nearby crash cause: {nearby_cause}")
+    if collision:
+        evidence.append(f"collision type: {collision}")
+    if cause_text:
+        evidence.append(f"hotspot factors: {cause_text}")
+
+    return "\n".join(
+        [
+            f"- Verdict: {verdict} for {intervention_name} at {road_name}.",
+            f"- Road-type basis: {', '.join(evidence) if evidence else 'no detailed road context was attached to the dropped artifact'}.",
+            f"- Engineering rationale: {reason}",
+            "- Judging basis: placement suitability is based on road type and observed crash context, not on the intervention's numeric CMF.",
+            f"- Next check: {next_step}",
+        ]
+    )
 
 
 def _catalog_intervention(intervention_id: str) -> dict:
@@ -133,7 +410,9 @@ def _recommendations_for_context(ctx: "ChatContext") -> list[dict]:
 
 def _evaluate_custom_intervention(name: str) -> dict:
     text = name.lower()
-    if any(token in text for token in ["bridge", "overhead", "footbridge"]):
+    if any(token in text for token in ["speed hump", "speed breaker", "road hump"]):
+        intervention_id = "speed-hump"
+    elif any(token in text for token in ["bridge", "overhead", "footbridge"]):
         intervention_id = "pedestrian-bridge"
     elif any(token in text for token in ["crosswalk", "zebra", "pedestrian"]):
         intervention_id = "raised-crosswalk"
@@ -200,7 +479,7 @@ def _static_chat_reply(message: str, ctx: "ChatContext", recommendations: list[d
                 clusters.add(cluster_name)
         cluster_count = len(clusters)
         lines.append(
-            f"- Static Kathmandu Valley demo plan covers {baseline} crash records across {cluster_count or 'all'} hotspot clusters."
+            f"- Static Kathmandu Valley screening plan covers {baseline} crash records across {cluster_count or 'all'} hotspot clusters."
         )
         lines.append(
             "- Every mapped cluster gets a fixed 5-8 intervention bundle: enforcement, signal/turning control, pedestrian protection, lighting, barrier/signage, and audit."
@@ -208,7 +487,7 @@ def _static_chat_reply(message: str, ctx: "ChatContext", recommendations: list[d
         for item in planned[:3]:
             lines.append(f"- {item}")
         lines.append(
-            "- This is a deterministic demo plan, so the answer is valley-wide and does not optimize for one selected location."
+            "- This is a valley-wide screening plan, so the answer does not optimize for one selected location."
         )
         return "\n".join(lines[:5])
 
@@ -245,6 +524,13 @@ def _static_chat_reply(message: str, ctx: "ChatContext", recommendations: list[d
 
 def _demo_chat_reply(message: str, ctx: "ChatContext") -> str:
     text = message.lower().strip()
+    constrained_site_reply = _site_constraint_reply(message)
+    if constrained_site_reply:
+        return constrained_site_reply
+    road_type_reply = _road_type_judgement_reply(message, ctx)
+    if road_type_reply:
+        return road_type_reply
+
     baseline = (
         float(ctx.hotspot.predictedCrashes)
         if ctx.hotspot and ctx.hotspot.predictedCrashes is not None
@@ -301,7 +587,7 @@ def _demo_chat_reply(message: str, ctx: "ChatContext") -> str:
                 ]
                 if avoided is not None:
                     lines.append(
-                        f"- Demo implication: up to {avoided} avoided crashes are put back at risk across the mapped valley baseline."
+                        f"- Network implication: up to {avoided} avoided crashes are put back at risk across the mapped valley baseline."
                     )
                 return "\n".join(lines)
         return (
@@ -323,11 +609,11 @@ def _demo_chat_reply(message: str, ctx: "ChatContext") -> str:
         return (
             "- CMF is applied only to the crash type targeted by an intervention.\n"
             "- A CMF below 1.00 reduces matching crash risk; removing the intervention returns that factor to 1.00.\n"
-            "- Ask about a specific intervention to calculate its demo impact."
+            "- Ask about a specific intervention to calculate its expected impact."
         )
 
     return (
-        "- The demo uses fixed intervention rules matched to recorded crash causes across Kathmandu Valley clusters.\n"
+        "- The system uses fixed intervention rules matched to recorded crash causes across Kathmandu Valley clusters.\n"
         "- Ask about removing an intervention, adding a treatment, or the expected CMF effect for a crash type."
     )
 
@@ -445,7 +731,7 @@ def _format_prompt(message: str, context: ChatContext, refs: List[dict]) -> str:
         ]
     )
     deterministic = {
-        "fixedCmfCatalog": {
+        "cmfCatalogForCalculationsOnly": {
             intervention_id: {
                 "name": values[0],
                 "cmf": values[1],
@@ -454,26 +740,38 @@ def _format_prompt(message: str, context: ChatContext, refs: List[dict]) -> str:
             for intervention_id, values in CMF_CATALOG.items()
         },
         "rankedRecommendations": _recommendations_for_context(context),
+        "siteConstraintRules": SITE_CONSTRAINT_RULES,
     }
 
     return (
-        "You are a road safety engineer answering a general user question for a hackathon "
-        "demo. Reason directly about the user's question. CMF is Crash Modification Factor "
+        "You are a road safety engineer answering a general user question. "
+        "Reason directly about the user's question. CMF is Crash Modification Factor "
         "/ Crash Multiplication Factor, not a model accuracy score. A treatment CMF below "
         "1.00 reduces matching crash risk. Removing that treatment returns its applicable "
         "factor to 1.00; calculate the relative rise from the treated state as "
         "(1 / treatment_CMF - 1) * 100 when relevant. Never multiply every intervention "
         "across every crash, never invent or estimate any CMF, and do not provide unrelated "
-        "recommendations. Use the fixedCmfCatalog value when a matching treatment exists. "
+        "recommendations. Use catalog CMF values only when the user explicitly asks for "
+        "impact math. Do not use numeric CMF values to judge whether a dropped artifact "
+        "belongs at a location. For placement judgement, use selectedIntervention.roadContext "
+        "and reason from roadClass, corridor, nearby crash cause, collision type, vehicle type, "
+        "and hotspot factors. "
+        "If the user's scenario matches a siteConstraintRules entry, explain the constraint "
+        "point by point and use its constrained screening CMF instead of the baseline CMF. "
+        "State clearly that the constrained value is a screening assumption that requires a "
+        "site-width check before design approval. "
         "For streetlights or lighting, use LED Street Lighting CMF 0.72. Answer only "
-        "the question in 2-5 concise bullets.\n\n"
+        "the question in 4-7 concise, point-by-point bullets when the question needs "
+        "engineering judgment. Cover the assessment, CMF effect, rationale, site checks, "
+        "and recommended decision where relevant. Avoid filler and do not mention internal "
+        "implementation details.\n\n"
         f"HOTSPOT_CONTEXT_JSON:\n{hotspot_block}\n\n"
         f"INTERVENTIONS_JSON:\n{interventions_block}\n\n"
         f"SELECTED_INTERVENTION_JSON:\n{selected_block}\n\n"
         f"DETERMINISTIC_CMF_JSON:\n{json.dumps(deterministic, ensure_ascii=False)}\n\n"
         f"REFERENCES:\n{references}\n\n"
         f"QUESTION: {message}\n"
-        "ANSWER (up to five concise bullets):"
+        "ANSWER (concise point-by-point bullets):"
     )
 
 
@@ -506,6 +804,7 @@ class ChatIntervention(BaseModel):
     longitude: float
     timestamp: int
     roadId: Optional[str] = None
+    roadContext: Optional[dict] = None
     origin: Optional[str] = "planner"
 
 
@@ -515,6 +814,7 @@ class ChatContext(BaseModel):
     hotspot: Optional[ChatHotspot] = None
     interventions: List[ChatIntervention] = []
     selectedIntervention: Optional[ChatIntervention] = None
+    nearbyInterventions: List[ChatIntervention] = []
 
 
 class ChatRequest(BaseModel):
@@ -569,6 +869,31 @@ def get_hotspots() -> dict:
 @app.post("/api/chat", response_model=ChatResponse)
 def chat(payload: ChatRequest) -> ChatResponse:
     ctx = payload.context
+    constrained_site_reply = _site_constraint_reply(payload.message)
+    if constrained_site_reply:
+        return ChatResponse(
+            reply=constrained_site_reply,
+            sources=[],
+            recommendations=[],
+            impactModel=_combined_impact(ctx),
+        )
+    implication_reply = _artifact_implication_reply(payload.message, ctx)
+    if implication_reply:
+        return ChatResponse(
+            reply=implication_reply,
+            sources=[],
+            recommendations=[],
+            impactModel=None,
+        )
+    road_type_reply = _road_type_judgement_reply(payload.message, ctx)
+    if road_type_reply:
+        return ChatResponse(
+            reply=road_type_reply,
+            sources=[],
+            recommendations=[],
+            impactModel=None,
+        )
+
     if _is_addition_recommendation_question(payload.message):
         recommendations = _recommendations_for_context(ctx)
         return ChatResponse(

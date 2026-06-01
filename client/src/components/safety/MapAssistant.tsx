@@ -38,11 +38,28 @@ export function MapAssistant({
   const [error, setError] = useState<string | null>(null);
 
   const context = useMemo(
-    () => ({
-      hotspot: hotspot ?? null,
-      interventions,
-      selectedIntervention,
-    }),
+    () => {
+      const nearbyInterventions = selectedIntervention
+        ? interventions
+            .filter((intervention) => {
+              if (intervention.id === selectedIntervention.id) return false;
+              if (intervention.roadId && intervention.roadId === selectedIntervention.roadId) {
+                return true;
+              }
+              const dLat = intervention.latitude - selectedIntervention.latitude;
+              const dLng = intervention.longitude - selectedIntervention.longitude;
+              return dLat * dLat + dLng * dLng < 0.000004;
+            })
+            .slice(0, 8)
+        : [];
+
+      return {
+        hotspot: hotspot ?? null,
+        interventions,
+        selectedIntervention,
+        nearbyInterventions,
+      };
+    },
     [hotspot, interventions, selectedIntervention],
   );
 
